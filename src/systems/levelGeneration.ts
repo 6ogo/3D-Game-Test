@@ -98,50 +98,39 @@ export class LevelGenerator {
 
   private populateEnemies(rooms: Room[]): Enemy[] {
     const enemies: Enemy[] = [];
-
     rooms.forEach(room => {
       if (room.type === 'normal' || room.type === 'elite') {
-        const numEnemies = room.type === 'elite' ? 
-          3 + Math.floor(this.difficulty) :
-          1 + Math.floor(this.difficulty * 0.5);
-
+        const numEnemies = room.type === 'elite' ? 3 + Math.floor(this.difficulty) : 1 + Math.floor(this.difficulty * 0.5);
         for (let i = 0; i < numEnemies; i++) {
-          const enemy = this.generateEnemy(room.type === 'elite');
+          const enemy = this.generateEnemy(room.type === 'elite', room);
           enemies.push(enemy);
           room.enemies.push(enemy);
         }
       }
     });
-
     return enemies;
   }
-
-  private generateEnemy(isElite: boolean): Enemy {
-    // Enemy generation logic here
+  
+  private generateEnemy(isElite: boolean, room: Room): Enemy {
+    const position = {
+      x: Math.random() * room.size.width,
+      y: 1,
+      z: Math.random() * room.size.height
+    };
     return {
       id: `enemy-${Date.now()}-${Math.random()}`,
       type: isElite ? 'elite' : 'normal',
       health: isElite ? 200 : 100,
       maxHealth: isElite ? 200 : 100,
-      position: { x: 0, y: 0, z: 0 },
+      position,
       damage: isElite ? 20 : 10,
       experience: isElite ? 100 : 50,
       abilities: [],
-      behavior: {
-        type: 'aggressive',
-        detectionRange: 10,
-        attackRange: 2,
-        movementSpeed: 5,
-        attackSpeed: 1,
-        patterns: []
-      },
-      dropTable: {
-        equipment: [],
-        resources: []
-      }
+      behavior: { type: 'aggressive', detectionRange: 10, attackRange: 2, movementSpeed: 5, attackSpeed: 1, patterns: [] },
+      dropTable: { equipment: [], resources: [] }
     };
   }
-
+  
   private placeTreasures(rooms: Room[]): Treasure[] {
     const treasures: Treasure[] = [];
 

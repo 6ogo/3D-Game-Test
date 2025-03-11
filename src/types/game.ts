@@ -16,6 +16,13 @@ export interface Player {
   activeBuffs: Buff[];
 }
 
+export interface Boon {
+  id: string;
+  name: string;
+  description: string;
+  apply: (player: Player) => void;
+}
+
 export interface PlayerStats {
   strength: number;
   agility: number;

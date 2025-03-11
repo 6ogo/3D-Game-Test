@@ -1,4 +1,24 @@
-import { Player, Equipment, Ability, PlayerStats } from '../types/game';
+import { Player, Equipment, Ability, PlayerStats, Boon } from '../types/game';
+
+export const BOONS: Boon[] = [
+  {
+    id: 'health-boost',
+    name: 'Health Boost',
+    description: 'Increase max health by 20',
+    apply: (player) => {
+      player.maxHealth += 20;
+      player.health += 20;
+    }
+  },
+  {
+    id: 'damage-boost',
+    name: 'Damage Boost',
+    description: 'Increase attack damage by 5',
+    apply: (player) => {
+      player.abilities.forEach(ability => { if (ability.type === 'attack') ability.damage += 5; });
+    }
+  }
+];
 
 export class ProgressionSystem {
   private static instance: ProgressionSystem;

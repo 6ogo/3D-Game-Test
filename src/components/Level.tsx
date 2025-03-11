@@ -1,96 +1,60 @@
-import { useRef } from 'react';
 import * as THREE from 'three';
 import { RigidBody } from '@react-three/rapier';
 import { useGameStore } from '../store/gameStore';
+import { Enemy } from './Enemy';
 
 export function Level() {
-  const floorRef = useRef<THREE.Mesh>(null);
-  const currentLevel = useGameStore((state) => state.currentLevel);
+  const { currentLevel, currentRoomId } = useGameStore();
+  if (!currentLevel || !currentRoomId) return null;
 
-  // Create a larger, more detailed level
-  const levelSize = 100;
-  const pillarCount = 20;
-  const wallHeight = 5;
+  const currentRoom = currentLevel.rooms.find(room => room.id === currentRoomId);
+  if (!currentRoom) return null;
+
+  const { size, layout, connections, enemies } = currentRoom;
+  const tileSize = 1;
 
   return (
-    <group>
-      {/* Main floor */}
-      <RigidBody type="fixed" restitution={0.2} friction={1}>
-        <mesh 
-          ref={floorRef} 
-          rotation={[-Math.PI / 2, 0, 0]} 
-          position={[0, 0, 0]} 
-          receiveShadow
-        >
-          <planeGeometry args={[levelSize, levelSize]} />
-          <meshStandardMaterial 
-            color="#2a2a2a"
-            metalness={0.2}
-            roughness={0.8}
-          />
-        </mesh>
-      </RigidBody>
-
-      {/* Boundary walls */}
-      {[
-        [-levelSize/2, wallHeight/2, 0, 1, wallHeight, levelSize], // Left
-        [levelSize/2, wallHeight/2, 0, 1, wallHeight, levelSize],  // Right
-        [0, wallHeight/2, -levelSize/2, levelSize, wallHeight, 1], // Back
-        [0, wallHeight/2, levelSize/2, levelSize, wallHeight, 1],  // Front
-      ].map((wall, i) => (
-        <RigidBody key={`wall-${i}`} type="fixed" friction={1}>
-          <mesh position={[wall[0], wall[1], wall[2]]} castShadow receiveShadow>
-            <boxGeometry args={[wall[3], wall[4], wall[5]]} />
-            <meshStandardMaterial color="#1a1a1a" />
-          </mesh>
-        </RigidBody>
-      ))}
-
-      {/* Pillars and decorative elements */}
-      {Array.from({ length: pillarCount }).map((_, i) => {
-        const angle = (i / pillarCount) * Math.PI * 2;
-        const radius = 20;
-        const x = Math.cos(angle) * radius;
-        const z = Math.sin(angle) * radius;
-
-        return (
-          <RigidBody key={`pillar-${i}`} type="fixed" friction={1}>
-            <group position={[x, 0, z]}>
-              {/* Pillar base */}
-              <mesh position={[0, 2, 0]} castShadow>
-                <cylinderGeometry args={[1, 1.2, 4, 8]} />
-                <meshStandardMaterial color="#6a1b9a" />
+    <group position={[0, 0, 0]}>
+      {/* Floor and Walls */}
+      {layout.map((row, y) =>
+        row.map((cell, x) => {
+          const posX = x * tileSize;
+          const posZ = y * tileSize;
+          return cell === 1 ? (
+            <RigidBody key={`floor-${x}-${y}`} type="fixed" position={[posX, 0, posZ]}>
+              <mesh receiveShadow>
+                <boxGeometry args={[tileSize, 0.1, tileSize]} />
+                <meshStandardMaterial color="#2a2a2a" />
               </mesh>
-              {/* Pillar top */}
-              <mesh position={[0, 4, 0]} castShadow>
-                <boxGeometry args={[2, 0.5, 2]} />
-                <meshStandardMaterial color="#4a0072" />
+            </RigidBody>
+          ) : (
+            <RigidBody key={`wall-${x}-${y}`} type="fixed" position={[posX, 0.5, posZ]}>
+              <mesh castShadow receiveShadow>
+                <boxGeometry args={[tileSize, 1, tileSize]} />
+                <meshStandardMaterial color="#1a1a1a" />
               </mesh>
-            </group>
-          </RigidBody>
-        );
-      })}
+            </RigidBody>
+          );
+        })
+      )}
 
-      {/* Random decorative elements */}
-      {Array.from({ length: 30 }).map((_, i) => {
-        const angle = Math.random() * Math.PI * 2;
-        const radius = Math.random() * 30 + 10;
-        const x = Math.cos(angle) * radius;
-        const z = Math.sin(angle) * radius;
-
+      {/* Doors */}
+      {connections.map((connectedRoomId, index) => {
+        const doorPosition = index === 0 ? [size.width * tileSize - 0.5, 1, size.height / 2 * tileSize] : [0.5, 1, size.height / 2 * tileSize];
         return (
-          <RigidBody key={`decor-${i}`} type="fixed" friction={1}>
-            <mesh
-              position={[x, 0.5, z]}
-              rotation={[0, Math.random() * Math.PI, 0]}
-              castShadow
-            >
-              <boxGeometry args={[2, 1, 2]} />
-              <meshStandardMaterial color={`hsl(${Math.random() * 60 + 260}, 70%, 20%)`} />
+          <RigidBody key={`door-${index}`} type="fixed" position={doorPosition} userData={{ type: 'door', connectedRoomId }}>
+            <mesh>
+              <boxGeometry args={[1, 2, 1]} />
+              <meshStandardMaterial color="#8b4513" />
             </mesh>
           </RigidBody>
         );
       })}
+
+      {/* Enemies */}
+      {enemies.map(enemy => (
+        <Enemy key={enemy.id} position={[enemy.position.x, enemy.position.y, enemy.position.z]} />
+      ))}
     </group>
   );
 }

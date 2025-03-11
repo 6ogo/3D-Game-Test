@@ -5,68 +5,58 @@ import * as THREE from 'three';
 import { useGameStore } from '../store/gameStore';
 
 export function Enemy({ position }: { position: [number, number, number] }) {
-  const rigidBodyRef = useRef(null);
+  const rigidBodyRef = useRef<any>(null);
   const meshRef = useRef<THREE.Mesh>(null);
   const [health, setHealth] = useState(100);
   const player = useGameStore((state) => state.player);
+  const currentRoomId = useGameStore((state) => state.currentRoomId);
   const targetPosition = useRef(new THREE.Vector3());
   const moveDirection = useRef(new THREE.Vector3());
   const currentVelocity = useRef(new THREE.Vector3());
+  const attackCooldown = useRef(0);
 
   useFrame((state, delta) => {
-    if (!meshRef.current || !rigidBodyRef.current) return;
+    if (!meshRef.current || !rigidBodyRef.current || health <= 0) return;
 
-    // Get player position from store
-    const playerPos = new THREE.Vector3(
-      player.position.x,
-      player.position.y,
-      player.position.z
-    );
+    if (attackCooldown.current > 0) attackCooldown.current -= delta;
 
-    // Calculate direction to player
+    const playerPos = new THREE.Vector3(player.position.x, player.position.y, player.position.z);
     const currentPos = meshRef.current.getWorldPosition(new THREE.Vector3());
     targetPosition.current.copy(playerPos).sub(currentPos);
-    
     const distance = targetPosition.current.length();
-    
-    // Only move if player is within range
+
     if (distance < 15 && distance > 2) {
       moveDirection.current.copy(targetPosition.current).normalize();
-      
-      // Apply movement with acceleration and damping
       const speed = 3;
       const acceleration = 8;
       const damping = 0.95;
 
-      // Update velocity with acceleration
       currentVelocity.current.x += moveDirection.current.x * acceleration * delta;
       currentVelocity.current.z += moveDirection.current.z * acceleration * delta;
-
-      // Apply damping
       currentVelocity.current.multiplyScalar(damping);
+      if (currentVelocity.current.lengthSq() > speed * speed) currentVelocity.current.normalize().multiplyScalar(speed);
 
-      // Apply speed limit
-      if (currentVelocity.current.lengthSq() > speed * speed) {
-        currentVelocity.current.normalize().multiplyScalar(speed);
-      }
-
-      // Update physics body velocity
       const rigidBody = rigidBodyRef.current;
       const linvel = rigidBody.linvel();
-      rigidBody.setLinvel({
-        x: currentVelocity.current.x,
-        y: linvel.y,
-        z: currentVelocity.current.z
-      });
+      rigidBody.setLinvel({ x: currentVelocity.current.x, y: linvel.y, z: currentVelocity.current.z });
 
-      // Rotate towards player
-      const angle = Math.atan2(
-        moveDirection.current.x,
-        moveDirection.current.z
-      );
+      const angle = Math.atan2(moveDirection.current.x, moveDirection.current.z);
       meshRef.current.rotation.y = angle;
     }
+
+    if (distance < 2 && attackCooldown.current <= 0) {
+      attackCooldown.current = 1;
+      useGameStore.getState().takeDamage(10);
+    }
+
+    // Sync health with store (simplified)
+    const room = useGameStore.getState().currentLevel?.rooms.find(r => r.id === currentRoomId);
+    const enemy = room?.enemies.find(e => e.position.x === position[0] && e.position.z === position[2]);
+    if (enemy && enemy.health !== health) setHealth(enemy.health);
+    if (health <= 0) useGameStore.getState().removeEnemy(currentRoomId!, enemy!.id);
   });
+
+  if (health <= 0) return null;
 
   return (
     <RigidBody
