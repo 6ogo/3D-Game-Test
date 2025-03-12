@@ -1,8 +1,14 @@
+import { MouseEvent } from 'react';
 import { useGameStore } from '../store/gameStore';
 
 export function UI() {
   const { player, isGameOver, resetGame, isUpgradeAvailable, availableBoons, selectBoon, currentRoomId, currentLevel } = useGameStore();
   const currentRoom = currentLevel?.rooms.find(room => room.id === currentRoomId);
+
+  // Wrap resetGame to handle MouseEvent
+  const handleResetGame = (e: MouseEvent<HTMLButtonElement>) => {
+    resetGame();
+  };
 
   if (isUpgradeAvailable) {
     return (
@@ -53,7 +59,9 @@ export function UI() {
         <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
           <div className="text-center">
             <h2 className="text-4xl text-white mb-4">Game Over</h2>
-            <button className="bg-red-600 text-white px-6 py-2 rounded-lg pointer-events-auto hover:bg-red-700" onClick={resetGame}>
+            <button 
+              className="bg-red-600 text-white px-6 py-2 rounded-lg pointer-events-auto hover:bg-red-700" 
+              onClick={handleResetGame}>
               Try Again
             </button>
           </div>
