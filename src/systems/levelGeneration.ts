@@ -1,5 +1,5 @@
 import { createNoise2D } from 'simplex-noise';
-import { Level, Room, Enemy, Treasure, Equipment } from '../types/game';
+import { Level, Room, Enemy, Treasure, Equipment, Vector3 } from '../types/game';
 
 export class LevelGenerator {
   private noise2D = createNoise2D();
@@ -13,9 +13,12 @@ export class LevelGenerator {
 
   generateLevel(): Level {
     const rooms = this.generateRooms();
+    this.connectRooms(rooms);
+    
+    // Generate level contents
     const enemies = this.populateEnemies(rooms);
     const treasures = this.placeTreasures(rooms);
-    const boss = this.generateBoss();
+    const boss = this.generateBoss(rooms.find(room => room.type === 'boss')!);
 
     return {
       id: `level-${Date.now()}`,
@@ -43,23 +46,35 @@ export class LevelGenerator {
       rooms.push(room);
     }
 
-    // Connect rooms
+    return rooms;
+  }
+
+  private connectRooms(rooms: Room[]): void {
+    // First create the main path
     rooms.forEach((room, i) => {
       if (i < rooms.length - 1) {
         room.connections.push(rooms[i + 1].id);
+        // Bidirectional connections for better navigation
+        rooms[i + 1].connections.push(room.id);
       }
     });
 
-    // Add optional branching paths
-    for (let i = 1; i < rooms.length - 1; i++) {
+    // Add some branches for exploration (treasure rooms)
+    const mainPathRooms = rooms.filter(room => 
+      room.type !== 'boss' && room.type !== 'treasure' && 
+      rooms.findIndex(r => r.id === room.id) < rooms.length - 2
+    );
+
+    for (const room of mainPathRooms) {
       if (Math.random() < 0.3) {
         const branchRoom = this.generateRoom('treasure');
-        rooms[i].connections.push(branchRoom.id);
         rooms.push(branchRoom);
+        
+        // Connect branch room bidirectionally
+        room.connections.push(branchRoom.id);
+        branchRoom.connections.push(room.id);
       }
     }
-
-    return rooms;
   }
 
   private generateRoom(type: Room['type']): Room {
@@ -69,6 +84,9 @@ export class LevelGenerator {
     };
 
     const layout = this.generateRoomLayout(size);
+    
+    // Ensure walkable paths by adding corridors
+    this.ensureWalkablePaths(layout);
 
     return {
       id: `room-${Date.now()}-${Math.random()}`,
@@ -84,11 +102,20 @@ export class LevelGenerator {
   private generateRoomLayout(size: { width: number; height: number }): number[][] {
     const layout: number[][] = [];
     
+    // Parameters for different room styles
+    const roomScale = 0.1; // Determines feature size
+    const threshold = 0.2 + (Math.random() * 0.3); // Randomize density
+    
     for (let y = 0; y < size.height; y++) {
       const row: number[] = [];
       for (let x = 0; x < size.width; x++) {
-        const value = this.noise2D(x * 0.1, y * 0.1);
-        row.push(value > 0.2 ? 1 : 0);
+        // Create border walls
+        if (x === 0 || y === 0 || x === size.width - 1 || y === size.height - 1) {
+          row.push(0); // Wall
+        } else {
+          const value = this.noise2D(x * roomScale, y * roomScale);
+          row.push(value > threshold ? 1 : 0); // 1 = floor, 0 = wall
+        }
       }
       layout.push(row);
     }
@@ -96,27 +123,93 @@ export class LevelGenerator {
     return layout;
   }
 
+  private ensureWalkablePaths(layout: number[][]): void {
+    const height = layout.length;
+    const width = layout[0].length;
+    
+    // Create main corridors
+    const midY = Math.floor(height / 2);
+    const midX = Math.floor(width / 2);
+    
+    // Horizontal corridor
+    for (let x = 1; x < width - 1; x++) {
+      layout[midY][x] = 1;
+    }
+    
+    // Vertical corridor
+    for (let y = 1; y < height - 1; y++) {
+      layout[y][midX] = 1;
+    }
+    
+    // Add door spaces on borders for connections
+    layout[midY][0] = 1; // Left door
+    layout[midY][width - 1] = 1; // Right door
+    
+    // Clear area around spawn points for safe entry
+    this.clearArea(layout, 1, midY, 3);
+    this.clearArea(layout, width - 2, midY, 3);
+  }
+  
+  private clearArea(layout: number[][], centerX: number, centerY: number, radius: number): void {
+    for (let y = Math.max(1, centerY - radius); y <= Math.min(layout.length - 2, centerY + radius); y++) {
+      for (let x = Math.max(1, centerX - radius); x <= Math.min(layout[0].length - 2, centerX + radius); x++) {
+        layout[y][x] = 1; // Set to floor
+      }
+    }
+  }
+
+  private findValidSpawnLocation(room: Room): Vector3 {
+    const { layout, size } = room;
+    const validPositions: Vector3[] = [];
+    
+    // Find all valid floor tiles
+    for (let y = 0; y < size.height; y++) {
+      for (let x = 0; x < size.width; x++) {
+        if (layout[y][x] === 1) {
+          // Check if it's not near an entrance (buffer zone)
+          const isNearEntrance = 
+            (x < 3 && y === Math.floor(size.height / 2)) || 
+            (x > size.width - 4 && y === Math.floor(size.height / 2));
+          
+          if (!isNearEntrance) {
+            validPositions.push({ x, y: 1, z: y });
+          }
+        }
+      }
+    }
+    
+    // Return random valid position
+    if (validPositions.length === 0) {
+      // Fallback if no valid positions found
+      return { x: Math.floor(size.width / 2), y: 1, z: Math.floor(size.height / 2) };
+    }
+    
+    return validPositions[Math.floor(Math.random() * validPositions.length)];
+  }
+
   private populateEnemies(rooms: Room[]): Enemy[] {
     const enemies: Enemy[] = [];
+    
     rooms.forEach(room => {
       if (room.type === 'normal' || room.type === 'elite') {
-        const numEnemies = room.type === 'elite' ? 3 + Math.floor(this.difficulty) : 1 + Math.floor(this.difficulty * 0.5);
+        const numEnemies = room.type === 'elite' 
+          ? 3 + Math.floor(this.difficulty) 
+          : 1 + Math.floor(this.difficulty * 0.5);
+        
         for (let i = 0; i < numEnemies; i++) {
-          const enemy = this.generateEnemy(room.type === 'elite', room);
+          const position = this.findValidSpawnLocation(room);
+          const enemy = this.generateEnemy(room.type === 'elite', position);
+          
           enemies.push(enemy);
           room.enemies.push(enemy);
         }
       }
     });
+    
     return enemies;
   }
   
-  private generateEnemy(isElite: boolean, room: Room): Enemy {
-    const position = {
-      x: Math.random() * room.size.width,
-      y: 1,
-      z: Math.random() * room.size.height
-    };
+  private generateEnemy(isElite: boolean, position: Vector3): Enemy {
     return {
       id: `enemy-${Date.now()}-${Math.random()}`,
       type: isElite ? 'Elite' : 'Normal',
@@ -126,7 +219,14 @@ export class LevelGenerator {
       damage: isElite ? 20 : 10,
       experience: isElite ? 100 : 50,
       abilities: [],
-      behavior: { type: 'aggressive', detectionRange: 10, attackRange: 2, movementSpeed: 5, attackSpeed: 1, patterns: [] },
+      behavior: { 
+        type: 'aggressive', 
+        detectionRange: 15, 
+        attackRange: 2, 
+        movementSpeed: isElite ? 4 : 3, 
+        attackSpeed: isElite ? 0.8 : 1, 
+        patterns: [] 
+      },
       dropTable: { equipment: [], resources: [] }
     };
   }
@@ -136,7 +236,9 @@ export class LevelGenerator {
 
     rooms.forEach(room => {
       if (room.type === 'treasure' || Math.random() < 0.3) {
+        const position = this.findValidSpawnLocation(room);
         const treasure = this.generateTreasure();
+        
         treasures.push(treasure);
         room.treasures.push(treasure);
       }
@@ -146,38 +248,95 @@ export class LevelGenerator {
   }
 
   private generateTreasure(): Treasure {
-    // Treasure generation logic here
+    const rarityRoll = Math.random();
+    const rarity = 
+      rarityRoll < 0.1 ? 'legendary' :
+      rarityRoll < 0.3 ? 'epic' :
+      rarityRoll < 0.6 ? 'rare' : 'common';
+    
     return {
       id: `treasure-${Date.now()}-${Math.random()}`,
       type: 'equipment',
-      rarity: Math.random() < 0.1 ? 'legendary' :
-              Math.random() < 0.3 ? 'epic' :
-              Math.random() < 0.6 ? 'rare' : 'common',
-      content: {} as Equipment // Placeholder
+      rarity,
+      content: this.generateEquipment(rarity)
+    };
+  }
+  
+  private generateEquipment(rarity: Treasure['rarity']): Equipment {
+    // Generate equipment based on rarity
+    const types = ['weapon', 'armor', 'accessory'] as const;
+    const type = types[Math.floor(Math.random() * types.length)];
+    
+    // Scale stats based on rarity
+    const rarityMultiplier = 
+      rarity === 'legendary' ? 3 :
+      rarity === 'epic' ? 2 :
+      rarity === 'rare' ? 1.5 : 1;
+    
+    return {
+      id: `equip-${Date.now()}-${Math.random()}`,
+      name: `${rarity.charAt(0).toUpperCase() + rarity.slice(1)} ${type}`,
+      type,
+      rarity,
+      stats: {
+        strength: Math.floor(Math.random() * 5 * rarityMultiplier),
+        agility: Math.floor(Math.random() * 5 * rarityMultiplier),
+        vitality: Math.floor(Math.random() * 5 * rarityMultiplier),
+        wisdom: Math.floor(Math.random() * 5 * rarityMultiplier),
+        criticalChance: type === 'weapon' ? Math.random() * 0.05 * rarityMultiplier : 0,
+        criticalDamage: type === 'weapon' ? 0.1 * rarityMultiplier : 0
+      }
     };
   }
 
-  private generateBoss(): Enemy {
-    // Boss generation logic here
+  private generateBoss(bossRoom: Room): Enemy {
+    const position = this.findValidSpawnLocation(bossRoom);
+    
     return {
       id: `boss-${Date.now()}`,
       type: 'Boss',
       health: 1000,
       maxHealth: 1000,
-      position: { x: 0, y: 0, z: 0 },
+      position,
       damage: 50,
       experience: 500,
-      abilities: [],
+      abilities: [{
+        id: 'boss-slam',
+        name: 'Ground Slam',
+        description: 'A powerful slam that damages all nearby enemies',
+        damage: 30,
+        cooldown: 5,
+        isReady: true,
+        type: 'attack',
+        effects: [{
+          type: 'damage',
+          value: 30,
+          radius: 5
+        }],
+        animation: 'slam',
+        soundEffect: 'hit',
+        particleEffect: 'shockwave'
+      }],
       behavior: {
         type: 'boss',
         detectionRange: 20,
         attackRange: 5,
         movementSpeed: 3,
         attackSpeed: 2,
-        patterns: []
+        patterns: [{
+          name: 'slam',
+          damage: 30,
+          range: 5,
+          cooldown: 5,
+          animation: 'slam',
+          particleEffect: 'shockwave'
+        }]
       },
       dropTable: {
-        equipment: [],
+        equipment: [{
+          item: this.generateEquipment('legendary'),
+          chance: 1.0
+        }],
         resources: []
       }
     };

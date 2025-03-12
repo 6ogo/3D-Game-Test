@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../store/gameStore';
 import * as THREE from 'three';
 import { ProgressionSystem } from '../systems/progression';
 import { CapsuleCollider, RigidBody } from '@react-three/rapier';
 import { useKeyboardControls } from '@react-three/drei';
+import { useFrustumCulling } from '../systems/optimizations';
 
 export function Player() {
   const rigidBodyRef = useRef<any>(null);
@@ -18,6 +19,12 @@ export function Player() {
   const [isDashing, setIsDashing] = useState(false);
   const dashCooldown = useRef(0);
   const [subscribeKeys, getKeys] = useKeyboardControls();
+  
+  // Add frustum culling optimization
+  useFrustumCulling(meshRef, 2); // 2 is the bounding sphere size in units
+
+  // For LOD, we would need multiple detail levels of the player model
+  // For now, focusing on other optimizations first
 
   useFrame((state, delta) => {
     if (!meshRef.current || !rigidBodyRef.current || !currentLevel || !currentRoomId || useGameStore.getState().isUpgradeAvailable) return;
@@ -28,30 +35,16 @@ export function Player() {
     if (dashCooldown.current > 0) dashCooldown.current -= delta;
 
     const keys = getKeys();
-    // Access keyboard states as booleans
-    const keyW = keys.forward;    // true if 'W' is pressed
-    const keyS = keys.backward;   // true if 'S' is pressed
-    const keyA = keys.left;       // true if 'A' is pressed
-    const keyD = keys.right;      // true if 'D' is pressed
-    const space = keys.jump;      // true if 'Space' is pressed
-    const keyJ = keys.action1;    // true if 'J' is pressed
     
-    console.log({
-      KeyW: keyW,
-      KeyS: keyS,
-      KeyA: keyA,
-      KeyD: keyD,
-      Space: space,
-      KeyJ: keyJ,
-    });
-
-
     // Attack
-    if (keys.KeyJ) {
+    if (keys.attack) {
       const attackRange = 2;
       const ability = player.abilities[0]; // e.g., 'basic-attack'
       const stats = ProgressionSystem.getInstance().calculateStats(player);
       const damage = ProgressionSystem.getInstance().calculateDamage(ability, stats);
+      
+      const worldPosition = meshRef.current.getWorldPosition(new THREE.Vector3());
+      
       currentRoom?.enemies.forEach((enemy: { position: { x: number | undefined; y: number | undefined; z: number | undefined; }; health: number; id: string; }) => {
         const enemyPos = new THREE.Vector3(enemy.position.x, enemy.position.y, enemy.position.z);
         const distance = worldPosition.distanceTo(enemyPos);
@@ -65,27 +58,32 @@ export function Player() {
     }
 
     moveDirection.current.set(0, 0, 0);
-    if (keys.KeyW) moveDirection.current.z -= 1;
-    if (keys.KeyS) moveDirection.current.z += 1;
-    if (keys.KeyA) moveDirection.current.x -= 1;
-    if (keys.KeyD) moveDirection.current.x += 1;
+    if (keys.forward) moveDirection.current.z -= 1;
+    if (keys.backward) moveDirection.current.z += 1;
+    if (keys.left) moveDirection.current.x -= 1;
+    if (keys.right) moveDirection.current.x += 1;
     if (moveDirection.current.lengthSq() > 0) moveDirection.current.normalize();
 
     // Dashing
-    if (keys.Space && dashCooldown.current <= 0 && moveDirection.current.lengthSq() > 0) {
+    if (keys.jump && dashCooldown.current <= 0 && moveDirection.current.lengthSq() > 0) {
       setIsDashing(true);
       dashCooldown.current = 0.5;
       setTimeout(() => setIsDashing(false), 200);
     }
 
-    const speed = isDashing ? 20 : 8;
+    // Get move speed from player stats, or use default
+    const baseSpeed = player.stats.moveSpeed || 8;
+    const speed = isDashing ? baseSpeed * 2.5 : baseSpeed;
     const acceleration = isDashing ? 50 : 15;
     const damping = isDashing ? 0.95 : 0.75;
 
     currentVelocity.current.x += moveDirection.current.x * acceleration * delta;
     currentVelocity.current.z += moveDirection.current.z * acceleration * delta;
     currentVelocity.current.multiplyScalar(damping);
-    if (currentVelocity.current.lengthSq() > speed * speed) currentVelocity.current.normalize().multiplyScalar(speed);
+    
+    if (currentVelocity.current.lengthSq() > speed * speed) {
+      currentVelocity.current.normalize().multiplyScalar(speed);
+    }
 
     const rigidBody = rigidBodyRef.current;
     const linvel = rigidBody.linvel();

@@ -24,6 +24,7 @@ export interface Boon {
 }
 
 export interface PlayerStats {
+  moveSpeed: number;
   strength: number;
   agility: number;
   vitality: number;
