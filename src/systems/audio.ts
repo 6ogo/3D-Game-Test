@@ -1,6 +1,17 @@
 import { Howl } from 'howler';
 
-const sounds = {
+type SoundEffects = 'hit' | 'heal' | 'ability';
+type MusicType = 'main' | 'combat' | 'boss';
+
+interface Sounds {
+  [key: string]: Howl | { [key in MusicType]: Howl };
+  hit: Howl;
+  heal: Howl;
+  ability: Howl;
+  music: { [key in MusicType]: Howl };
+}
+
+const sounds: Sounds = {
   hit: new Howl({
     src: ['https://assets.example.com/sounds/hit.mp3'],
     volume: 0.5
@@ -33,7 +44,7 @@ const sounds = {
 };
 
 export const AudioManager = {
-  playSound(id: string) {
+  playSound(id: SoundEffects) {
     if (sounds[id]) {
       sounds[id].play();
     }
@@ -51,12 +62,12 @@ export const AudioManager = {
   },
 
   setMusicVolume(volume: number) {
-    Object.values(sounds.music).forEach(track => track.volume(volume));
+    Object.values(sounds.music).forEach((track: Howl) => track.volume(volume));
   },
 
   setSFXVolume(volume: number) {
     Object.entries(sounds).forEach(([key, sound]) => {
-      if (key !== 'music') {
+      if (key !== 'music' && sound instanceof Howl) {
         sound.volume(volume);
       }
     });

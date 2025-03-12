@@ -1,6 +1,6 @@
-import { Vector3, Ability, Enemy, Player, ParticleSystem } from '../types/game';
-import { createParticleEffect } from './particles';
-import { playSound } from './audio';
+import { Vector3, Ability, Enemy, Player, ParticleSystem, AbilityEffect } from '../types/game';
+import { ParticleEngine } from './particles';
+import { AudioManager } from './audio';
 import { calculateDamage } from './stats';
 
 export class CombatSystem {
@@ -47,14 +47,14 @@ export class CombatSystem {
 
     // Create particle effects
     if (ability.particleEffect) {
-      const particleSystem = createParticleEffect({
+      const particleSystem = ParticleEngine.getInstance().createEffect({
         id: `${ability.id}-${Date.now()}`,
         type: 'ability',
         position,
         color: this.getEffectColor(ability),
-        size: effect.radius || 1,
+        size: ability.effects[0]?.radius || 1,
         duration: 1000,
-        spread: effect.radius || 2,
+        spread: ability.effects[0]?.radius || 2,
         count: 50
       });
       this.particles.push(particleSystem);
@@ -62,7 +62,7 @@ export class CombatSystem {
 
     // Play sound effects
     if (ability.soundEffect) {
-      playSound(ability.soundEffect);
+      AudioManager.playSound(ability.soundEffect as 'hit' | 'heal' | 'ability');
     }
   }
 
@@ -70,7 +70,7 @@ export class CombatSystem {
     target.health = Math.max(0, target.health - damage);
     
     // Create hit particles
-    const hitParticles = createParticleEffect({
+    const hitParticles = ParticleEngine.getInstance().createEffect({
       id: `hit-${Date.now()}`,
       type: 'hit',
       position: target.position,
@@ -82,13 +82,13 @@ export class CombatSystem {
     });
     this.particles.push(hitParticles);
     
-    playSound('hit');
+    AudioManager.playSound('hit');
   }
 
   private applyHealing(target: Player | Enemy, amount: number): void {
     target.health = Math.min(target.maxHealth, target.health + amount);
     
-    const healParticles = createParticleEffect({
+    const healParticles = ParticleEngine.getInstance().createEffect({
       id: `heal-${Date.now()}`,
       type: 'heal',
       position: target.position,
@@ -100,7 +100,7 @@ export class CombatSystem {
     });
     this.particles.push(healParticles);
     
-    playSound('heal');
+    AudioManager.playSound('heal');
   }
 
   private applyBuff(target: Player | Enemy, effect: AbilityEffect): void {

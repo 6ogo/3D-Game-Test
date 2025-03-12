@@ -6,18 +6,18 @@ export class ParticleEngine {
   private particles: THREE.Points[] = [];
   private scene: THREE.Scene;
 
-  private constructor(scene: THREE.Scene) {
-    this.scene = scene;
+  private constructor() {
+    this.scene = new THREE.Scene();
   }
 
-  static getInstance(scene: THREE.Scene): ParticleEngine {
+  static getInstance(): ParticleEngine {
     if (!ParticleEngine.instance) {
-      ParticleEngine.instance = new ParticleEngine(scene);
+      ParticleEngine.instance = new ParticleEngine();
     }
     return ParticleEngine.instance;
   }
 
-  createParticleEffect(config: ParticleSystem): void {
+  createEffect(config: ParticleSystem): ParticleSystem {
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(config.count * 3);
     const velocities = new Float32Array(config.count * 3);
@@ -65,6 +65,8 @@ export class ParticleEngine {
       this.scene.remove(points);
       this.particles = this.particles.filter(p => p !== points);
     }, config.duration);
+
+    return config;
   }
 
   update(deltaTime: number): void {

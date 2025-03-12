@@ -20,7 +20,7 @@ export function Game() {
     const level = levelGenerator.generateLevel();
     setCurrentLevel(level);
     setCurrentRoomId(level.rooms[0].id);
-    ParticleEngine.getInstance(/* scene ref would go here, simplified */);
+    ParticleEngine.getInstance();
     AudioManager.playMusic('main');
     return () => AudioManager.stopMusic();
   }, [setCurrentLevel, setCurrentRoomId]);

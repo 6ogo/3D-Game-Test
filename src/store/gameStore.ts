@@ -62,9 +62,10 @@ export const useGameStore = create<GameStore>((set) => ({
   },
 
   selectBoon: (boonId) => {
-    const boon = get().availableBoons.find(b => b.id === boonId);
+    const state = useGameStore.getState();
+    const boon = state.availableBoons.find(b => b.id === boonId);
     if (boon) {
-      const player = get().player;
+      const player = state.player;
       boon.apply(player);
       set({ player, isUpgradeAvailable: false, availableBoons: [] });
     }

@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+
 import { RigidBody } from '@react-three/rapier';
 import { useGameStore } from '../store/gameStore';
 import { Enemy } from './Enemy';
@@ -40,7 +40,9 @@ export function Level() {
 
       {/* Doors */}
       {connections.map((connectedRoomId, index) => {
-        const doorPosition = index === 0 ? [size.width * tileSize - 0.5, 1, size.height / 2 * tileSize] : [0.5, 1, size.height / 2 * tileSize];
+        const doorPosition = index === 0 
+          ? [size.width * tileSize - 0.5, 1, size.height / 2 * tileSize] as [number, number, number]
+          : [0.5, 1, size.height / 2 * tileSize] as [number, number, number];
         return (
           <RigidBody key={`door-${index}`} type="fixed" position={doorPosition} userData={{ type: 'door', connectedRoomId }}>
             <mesh>

@@ -1,5 +1,5 @@
 import { createNoise2D } from 'simplex-noise';
-import { Level, Room, Enemy, Treasure } from '../types/game';
+import { Level, Room, Enemy, Treasure, Equipment } from '../types/game';
 
 export class LevelGenerator {
   private noise2D = createNoise2D();
