@@ -103,11 +103,11 @@ export class CombatSystem {
     AudioManager.playSound('heal');
   }
 
-  private applyBuff(target: Player | Enemy, effect: AbilityEffect): void {
+  private applyBuff(_target: Player | Enemy, _effect: AbilityEffect): void {
     // TODO: Implementation for buff application
   }
 
-  private applyDebuff(target: Player | Enemy, effect: AbilityEffect): void {
+  private applyDebuff(_target: Player | Enemy, _effect: AbilityEffect): void {
     // TODO: Implementation for debuff application
   }
 

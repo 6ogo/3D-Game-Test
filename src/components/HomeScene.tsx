@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PerspectiveCamera, Sky, Stars } from '@react-three/drei';
-import { useMetaProgressionStore, PermanentUpgrade } from '../store/metaProgressionStore';
+import { useMetaProgressionStore } from '../store/metaProgressionStore';
 import { useGameStore } from '../store/gameStore';
 import { formatTime, formatNumber } from '../utils/formatters';
 import { Shield, Zap, Footprints, Target, Ghost } from 'lucide-react';
@@ -266,8 +266,7 @@ function UpgradesPanel() {
 function RunStatsPanel() {
   const runHistory = useMetaProgressionStore(state => state.runHistory);
   
-  // Get the most recent run
-  const latestRun = runHistory.length > 0 ? runHistory[0] : null;
+  // Get the most recent run (currently not used)
   
   return (
     <div className="bg-black/60 rounded-lg p-4 mb-4 flex-1 overflow-y-auto">

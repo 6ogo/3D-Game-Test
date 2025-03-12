@@ -326,7 +326,7 @@ export class ProjectileManager {
    */
   private spawnHitEffect(
     position: THREE.Vector3,
-    owner: "player" | "enemy"
+    _owner: "player" | "enemy"
   ): void {
     // This would use the ParticleSystem in a real implementation
     // For now, just log it

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ParticleSystem, Vector3 } from '../types/game';
+import { ParticleSystem } from '../types/game';
 
 export class ParticleEngine {
   private static instance: ParticleEngine;
@@ -24,7 +24,7 @@ export class ParticleEngine {
   createEffect(params: ParticleSystem): ParticleSystem {
     if (!this.scene) return params;
 
-    const { id, type, position, color, size, spread, count, duration } = params;
+    const { id, type, position, color, size, spread, count } = params;
     
     // Create particles geometry
     const geometry = new THREE.BufferGeometry();

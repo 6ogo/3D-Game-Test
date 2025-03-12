@@ -236,7 +236,6 @@ export class LevelGenerator {
 
     rooms.forEach(room => {
       if (room.type === 'treasure' || Math.random() < 0.3) {
-        const position = this.findValidSpawnLocation(room);
         const treasure = this.generateTreasure();
         
         treasures.push(treasure);

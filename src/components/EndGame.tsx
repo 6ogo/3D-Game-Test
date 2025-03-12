@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useMetaProgressionStore } from '../store/metaProgressionStore';
 import html2canvas from 'html2canvas';
@@ -49,7 +49,7 @@ export function EndGameScreen() {
         deaths: Math.floor(stats.deaths * progress),
         upgradesCollected: Math.floor(stats.upgradesCollected * progress),
         enemiesKilled: Math.floor(stats.enemiesKilled * progress),
-        bossKillTime: Math.floor(stats.bossKillTime * progress)
+        bossKillTime: Math.floor((stats.bossKillTime ?? 0) * progress)
       });
       
       if (progress < 1) {

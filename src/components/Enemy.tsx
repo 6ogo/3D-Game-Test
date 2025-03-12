@@ -102,7 +102,6 @@ function checkLineOfSight(start: THREE.Vector3, end: THREE.Vector3, layout?: num
   if (!layout) return true;
   
   // Simple raycasting through the grid-based level layout
-  const direction = new THREE.Vector3().subVectors(end, start).normalize();
   const distance = start.distanceTo(end);
   const steps = Math.ceil(distance * 2); // 2 samples per unit distance
   

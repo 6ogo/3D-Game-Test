@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createNoise2D } from 'simplex-noise';
-import { RoomType, LevelData, Room, DoorConnection, EnemySpawn, PropData } from '../types/level';
+import { RoomType, LevelData, Room, EnemySpawn, PropData } from '../types/level';
 
 /**
  * LevelManager - Handles dynamic loading and unloading of rooms
@@ -24,7 +24,6 @@ export class LevelManager {
   // Room templates and prefabs
   private roomTemplates: Map<RoomType, THREE.Object3D> = new Map();
   private propPrefabs: Map<string, THREE.Object3D> = new Map();
-  private enemyPrefabs: Map<string, THREE.Object3D> = new Map();
   private materials: Map<string, THREE.Material> = new Map();
   
   private constructor(scene: THREE.Scene) {

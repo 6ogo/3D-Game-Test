@@ -6,7 +6,7 @@ export function UI() {
   const currentRoom = currentLevel?.rooms.find(room => room.id === currentRoomId);
 
   // Wrap resetGame to handle MouseEvent
-  const handleResetGame = (e: MouseEvent<HTMLButtonElement>) => {
+  const handleResetGame = (_e: MouseEvent<HTMLButtonElement>) => {
     resetGame();
   };
 

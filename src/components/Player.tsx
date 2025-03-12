@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../store/gameStore';
 import * as THREE from 'three';
@@ -12,13 +12,12 @@ export function Player() {
   const meshRef = useRef<THREE.Group>(null);
   const { player, currentRoomId } = useGameStore();
   const currentLevel = useGameStore((state) => state.currentLevel);
-  const currentRoom = useGameStore((state) => state.currentLevel?.rooms.find((r) => r.id === currentRoomId));
   const setCurrentRoomId = useGameStore((state) => state.setCurrentRoomId);
   const moveDirection = useRef(new THREE.Vector3());
   const currentVelocity = useRef(new THREE.Vector3());
   const [isDashing, setIsDashing] = useState(false);
   const dashCooldown = useRef(0);
-  const [subscribeKeys, getKeys] = useKeyboardControls();
+  const [, getKeys] = useKeyboardControls();
   
   // Add frustum culling optimization
   useFrustumCulling(meshRef, 2); // 2 is the bounding sphere size in units
@@ -26,7 +25,7 @@ export function Player() {
   // For LOD, we would need multiple detail levels of the player model
   // For now, focusing on other optimizations first
 
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
     if (!meshRef.current || !rigidBodyRef.current || !currentLevel || !currentRoomId || useGameStore.getState().isUpgradeAvailable) return;
 
     const currentRoom = currentLevel.rooms.find((room: { id: string; }) => room.id === currentRoomId);

@@ -1,7 +1,6 @@
 import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Room } from '../types/game';
 
 /**
  * Optimized Frustum Culling Hook

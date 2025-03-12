@@ -3,14 +3,11 @@ import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera, Sky, Stars } from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
-import * as THREE from 'three';
 
 // Import custom systems
-import { LevelGenerator } from '../systems/levelGeneration';
 import { VisualEffectsManager } from '../systems/visualEffects';
 import { ProjectileManager, ParticleSystem, EnemyPool } from '../systems/objectPooling';
 import { ShaderManager } from '../systems/shaders';
-import { useGameStore } from '../store/gameStore';
 import { useGameSessionStore } from '../store/gameSessionStore';
 import { Player } from './Player';
 import { UI } from './UI';
@@ -68,7 +65,7 @@ function GameScene() {
   }, [scene, gl, camera, startSession]);
   
   // Update loop
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
     // Update all managers
     if (effectsManagerRef.current) {
       effectsManagerRef.current.update(delta);

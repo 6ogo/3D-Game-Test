@@ -1,25 +1,37 @@
 import { create } from "zustand";
 import { GameState, Player, Level, Boon } from "../types/game";
 import { BOONS } from "../systems/progression";
-import {
-  getMetaProgressionBonuses,
-} from "./metaProgressionStore";
-import { useGameFlowStore, completeRun } from "./gameFlowStore";
+import { getMetaProgressionBonuses } from "./metaProgressionStore";
+import { completeRun } from "./gameFlowStore";
 
+// Define a game session type to track stats
+export interface GameSession {
+  seed: string;
+  totalTime: number;
+  deaths: number;
+  enemiesKilled: number;
+  upgradesCollected: number;
+  roomsCleared: number;
+  bossKillTime: number | null;
+  damageDealt: number;
+  damageTaken: number;
+  soulsCollected: number;
+  startTime?: number;
+}
+
+// Create and return initial player state with progression bonuses
 const createInitialPlayer = (): Player => {
   // Get meta-progression bonuses
-  const {
-    maxHealthBonus = 0,
+  const { 
+    maxHealthBonus = 0, 
     damageBonus = 0,
     critChanceBonus = 0,
-    moveSpeedMultiplier = 1,
+    moveSpeedMultiplier = 1
   } = getMetaProgressionBonuses();
-
-  // Apply bonuses to initial player
+  
   return {
   health: 100 + maxHealthBonus,
   maxHealth: 100 + maxHealthBonus,
-  position: { x: 0, y: 0, z: 0 },
   abilities: [
     {
       id: "basic-attack",
@@ -49,28 +61,75 @@ const createInitialPlayer = (): Player => {
   equipment: [],
   activeBuffs: [],
   characterClass: undefined,
+  position: { x: 0, y: 0, z: 0 }
 };
 };
 
+// Default empty session
+const emptySession: GameSession = {
+  seed: 'random',
+  totalTime: 0,
+  deaths: 0,
+  enemiesKilled: 0,
+  upgradesCollected: 0,
+  roomsCleared: 0,
+  bossKillTime: null,
+  damageDealt: 0,
+  damageTaken: 0,
+  soulsCollected: 0
+};
+
+// Game scenes type
+export type GameScene = 'home' | 'game' | 'upgrade' | 'end';
+
+// Extend the game store interface
 interface GameStore extends GameState {
-  gameSession: any;
+  // Game flow
+  currentScene: GameScene;
+  gameSession: GameSession | null;
+  
+  // Level tracking
   currentLevel: Level | null;
   currentRoomId: string | null;
+  
+  // UI states
+  isUpgradeAvailable: boolean;
+  availableBoons: Boon[];
+  
+  // Methods for game state
   takeDamage: (amount: number) => void;
   heal: (amount: number) => void;
   gainExperience: (amount: number) => void;
   resetGame: (customPlayer?: Partial<Player>) => void;
   setCurrentLevel: (level: Level) => void;
   setCurrentRoomId: (roomId: string) => void;
-  isUpgradeAvailable: boolean;
-  availableBoons: Boon[];
+  
+  // Methods for upgrades
   showUpgradeUI: () => void;
   selectBoon: (boonId: string) => void;
+  
+  // Methods for enemies
   removeEnemy: (roomId: string, enemyId: string) => void;
+  
+  // Methods for game flow
+  startGame: () => void;
+  endGame: (victory: boolean) => void;
+  showEndGameScreen: (stats: GameSession) => void;
+  transitionToScene: (scene: GameScene) => void;
+  
+  // Session tracking
+  incrementDeaths: () => void;
+  incrementEnemiesKilled: () => void;
+  incrementUpgradesCollected: () => void;
+  incrementRoomsCleared: () => void;
+  updateDamageDealt: (amount: number) => void;
+  updateDamageTaken: (amount: number) => void;
+  updateSoulsCollected: (amount: number) => void;
 }
 
+// Create and export the game store
 export const useGameStore = create<GameStore>((set, get) => ({
-  gameSession: null,
+  // Initial state
   player: createInitialPlayer(),
   currentLevel: null,
   currentRoomId: null,
@@ -83,24 +142,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
   soundEnabled: true,
   musicVolume: 0.3,
   sfxVolume: 0.5,
-
-  setCurrentLevel: (level) => set({ currentLevel: level }),
-
-  setCurrentRoomId: (roomId) => {
-    // Register room cleared in game flow store when changing rooms
-    if (roomId !== get().currentRoomId && get().currentRoomId) {
-      const currentRoomId = get().currentRoomId;
-      if (currentRoomId) {
-        useGameFlowStore.getState().registerRoomCleared(currentRoomId);
-      }
-    }
-
-    set({ currentRoomId: roomId });
-  },
-
+  currentScene: 'home',
+  gameSession: null,
   isUpgradeAvailable: false,
   availableBoons: [],
 
+  // Level management
+  setCurrentLevel: (level) => set({ currentLevel: level }),
+  
+  setCurrentRoomId: (roomId) => {
+    if (roomId && roomId !== get().currentRoomId) {
+      // Increment rooms cleared counter when changing rooms
+      get().incrementRoomsCleared();
+    }
+    set({ currentRoomId: roomId });
+  },
+  
+  // Upgrade system
   showUpgradeUI: () => {
     const boons = [...BOONS];
     const selectedBoons = [];
@@ -116,58 +174,55 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const boon = state.availableBoons.find((b) => b.id === boonId);
     if (boon) {
       const player = state.player;
-
+      
       // Apply the boon
       boon.apply(player);
-
-      // Register the boon in the game session
-      useGameFlowStore.getState().registerBoonCollected(boonId);
-
+      
+      // Increment upgrades collected
+      get().incrementUpgradesCollected();
+      
       set({ player, isUpgradeAvailable: false, availableBoons: [] });
     }
   },
 
+  // Enemy management
   removeEnemy: (roomId, enemyId) => {
     set((state) => {
-      if (!state.currentLevel || !roomId) return state;
-
+      if (!state.currentLevel) return state;
+      
       const room = state.currentLevel.rooms.find((r) => r.id === roomId);
       if (!room) return state;
-
+      
       const enemy = room.enemies.find((e) => e.id === enemyId);
       if (!enemy) return state;
-
+      
       // Remove enemy from room
       room.enemies = room.enemies.filter((e) => e.id !== enemyId);
-
+      
       // Award experience
       state.gainExperience(enemy.experience);
-
-      // Register the enemy defeat in game flow
-      useGameFlowStore
-        .getState()
-        .registerEnemyDefeated(enemyId, enemy.experience);
-
-      // Register damage dealt equal to enemy max health
-      useGameFlowStore.getState().registerDamageDealt(enemy.maxHealth);
-
+      
+      // Increment enemies killed counter
+      state.incrementEnemiesKilled();
+      
+      // Update damage dealt (assuming it took full health to kill)
+      state.updateDamageDealt(enemy.maxHealth);
+      
       // Check if this was a boss
-      if (enemy.type === "Boss") {
-        useGameFlowStore.getState().registerBossDefeated();
-
-        // Complete the run with victory
-        completeRun(true);
-
+      if (enemy.type === 'Boss') {
+        // End game with victory
+        get().endGame(true);
+        
         return {
           currentLevel: { ...state.currentLevel },
           isGameOver: true,
         };
       }
-
+      
       // Check if room is cleared
       if (room.enemies.length === 0) {
         // If not a boss room, show upgrades
-        if (room.type !== "boss") {
+        if (room.type !== 'boss') {
           const boons = [...BOONS];
           const selectedBoons = [];
           for (let i = 0; i < 2; i++) {
@@ -181,26 +236,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
           };
         }
       }
-
+      
       return {
-        currentLevel: { ...state.currentLevel },
+        currentLevel: { ...state.currentLevel }
       };
     });
   },
 
+  // Combat system
   takeDamage: (amount) => {
-    // Register damage taken in game flow
-    useGameFlowStore.getState().registerDamageTaken(amount);
-
+    // Update damage taken in session
+    get().updateDamageTaken(amount);
+    
     set((state) => {
       const newHealth = Math.max(0, state.player.health - amount);
       const isGameOver = newHealth <= 0;
-
-      // If player died, complete run with defeat
+      
+      // If player dies, increment death counter
       if (isGameOver) {
-        completeRun(false);
+        get().incrementDeaths();
       }
-
+      
       return {
         player: {
           ...state.player,
@@ -210,7 +266,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       };
     });
   },
-
+  
   heal: (amount) =>
     set((state) => ({
       player: {
@@ -218,7 +274,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         health: Math.min(state.player.maxHealth, state.player.health + amount),
       },
     })),
-
+    
   gainExperience: (amount) =>
     set((state) => {
       const newExperience = state.player.experience + amount;
@@ -245,14 +301,52 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
       return { player: { ...state.player, experience: newExperience } };
     }),
-
+  
+  // Game flow
+  startGame: () => {
+    // Start a new game session
+    const gameSession: GameSession = {
+      ...emptySession,
+      seed: Math.random().toString(36).substring(2, 15),
+      totalTime: 0,
+      startTime: Date.now(),
+    };
+    
+    set({
+      gameSession,
+      currentScene: 'game',
+      isGameOver: false
+    });
+  },
+  
+  endGame: (victory) => {
+    const { gameSession } = get();
+    
+    if (!gameSession) return;
+    
+    // Complete the run (integrates with meta-progression)
+    completeRun(victory);
+    
+    // Show the end game screen
+    get().showEndGameScreen(gameSession);
+  },
+  
+  showEndGameScreen: (stats) => {
+    set({
+      currentScene: 'end',
+      gameSession: stats
+    });
+  },
+  
+  transitionToScene: (scene) => {
+    set({ currentScene: scene });
+  },
+  
+  // Reset game to initial state
   resetGame: (customPlayer = {}) => {
     // Create fresh player with meta-progression bonuses
     const basePlayer = createInitialPlayer();
-
-    // Start a new game session
-    useGameFlowStore.getState().startNewSession();
-
+    
     // Apply any custom overrides (useful for testing)
     set({
       player: { ...basePlayer, ...customPlayer },
@@ -260,6 +354,100 @@ export const useGameStore = create<GameStore>((set, get) => ({
       currentRoomId: null,
       isPaused: false,
       isGameOver: false,
+      gameSession: null,
+      currentScene: 'home'
     });
   },
+  
+  // Session tracking methods
+  incrementDeaths: () => {
+    set(state => {
+      if (!state.gameSession) return state;
+      
+      return {
+        gameSession: {
+          ...state.gameSession,
+          deaths: state.gameSession.deaths + 1
+        }
+      };
+    });
+  },
+  
+  incrementEnemiesKilled: () => {
+    set(state => {
+      if (!state.gameSession) return state;
+      
+      return {
+        gameSession: {
+          ...state.gameSession,
+          enemiesKilled: state.gameSession.enemiesKilled + 1
+        }
+      };
+    });
+  },
+  
+  incrementUpgradesCollected: () => {
+    set(state => {
+      if (!state.gameSession) return state;
+      
+      return {
+        gameSession: {
+          ...state.gameSession,
+          upgradesCollected: state.gameSession.upgradesCollected + 1
+        }
+      };
+    });
+  },
+  
+  incrementRoomsCleared: () => {
+    set(state => {
+      if (!state.gameSession) return state;
+      
+      return {
+        gameSession: {
+          ...state.gameSession,
+          roomsCleared: state.gameSession.roomsCleared + 1
+        }
+      };
+    });
+  },
+  
+  updateDamageDealt: (amount) => {
+    set(state => {
+      if (!state.gameSession) return state;
+      
+      return {
+        gameSession: {
+          ...state.gameSession,
+          damageDealt: state.gameSession.damageDealt + amount
+        }
+      };
+    });
+  },
+  
+  updateDamageTaken: (amount) => {
+    set(state => {
+      if (!state.gameSession) return state;
+      
+      return {
+        gameSession: {
+          ...state.gameSession,
+          damageTaken: state.gameSession.damageTaken + amount
+        }
+      };
+    });
+  },
+  
+  updateSoulsCollected: (amount) => {
+    set(state => {
+      if (!state.gameSession) return state;
+      
+      return {
+        gameSession: {
+          ...state.gameSession,
+          soulsCollected: state.gameSession.soulsCollected + amount
+        }
+      };
+    });
+  }
 }));
