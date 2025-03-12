@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { PerspectiveCamera, Sky, Stars } from '@react-three/drei';
 import { useMetaProgressionStore } from '../store/metaProgressionStore';
 import { useGameStore } from '../store/gameStore';
+import { useGameFlowStore } from '../store/gameFlowStore';
 import { formatTime, formatNumber } from '../utils/formatters';
 import { Shield, Zap, Footprints, Target, Ghost } from 'lucide-react';
 
@@ -18,20 +19,17 @@ export function HomeScene() {
   // Handle start game button
   const handleStartGame = () => {
     setStartingGame(true);
+    
     // Apply meta-progression bonuses to starting player
     const playerWithBonuses = applyMetaProgressionBonuses();
     
     // Reset game with the enhanced player stats
     resetGame(playerWithBonuses);
     
-    // We'd transition to the game scene here
-    // For this example, we'll just simulate it after a delay
-    setTimeout(() => {
-      setStartingGame(false);
-      // In reality, you'd update your route or component state
-      // to show the actual Game component instead of HomeScene
-    }, 1000);
+    // Transition to the game scene
+    useGameFlowStore.getState().transitionToGame();
   };
+  
   
   // Apply meta-progression bonuses to a new player
   const applyMetaProgressionBonuses = () => {
