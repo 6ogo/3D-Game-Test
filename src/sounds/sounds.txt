@@ -1,0 +1,56 @@
+  hit: {
+    src: ['/sounds/hit.mp3', '/sounds/hit.webm'],
+    volume: 0.5,
+  },
+  heal: {
+    src: ['/sounds/heal.mp3', '/sounds/heal.webm'],
+    volume: 0.4,
+  },
+  ability: {
+    src: ['/sounds/ability.mp3', '/sounds/ability.webm'],
+    volume: 0.6,
+  },
+  dash: {
+    src: ['/sounds/dash.mp3', '/sounds/dash.webm'],
+    volume: 0.4,
+  },
+  footstep: {
+    src: ['/sounds/footstep.mp3', '/sounds/footstep.webm'],
+    volume: 0.2,
+  },
+  death: {
+    src: ['/sounds/death.mp3', '/sounds/death.webm'],
+    volume: 0.6,
+  },
+  pickup: {
+    src: ['/sounds/pickup.mp3', '/sounds/pickup.webm'],
+    volume: 0.5,
+  },
+  
+  // Music tracks
+  music: {
+    main: {
+      src: ['/music/main-theme.mp3', '/music/main-theme.webm'],
+      volume: 0.3,
+      loop: true,
+    },
+    combat: {
+      src: ['/music/combat.mp3', '/music/combat.webm'],
+      volume: 0.3,
+      loop: true,
+    },
+    boss: {
+      src: ['/music/boss.mp3', '/music/boss.webm'],
+      volume: 0.4,
+      loop: true,
+    },
+    victory: {
+      src: ['/music/victory.mp3', '/music/victory.webm'],
+      volume: 0.5,
+      loop: false,
+    },
+    defeat: {
+      src: ['/music/defeat.mp3', '/music/defeat.webm'],
+      volume: 0.5,
+      loop: false,
+    },
