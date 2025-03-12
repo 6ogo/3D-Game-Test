@@ -619,7 +619,7 @@ export class VisualEffectsManager {
     });
     
     // Update bloom pass resolution
-    const bloomPass = this.customPasses.get('bloom') as UnrealBloomPass;
+    const bloomPass = this.customPasses.get('bloom') as unknown as UnrealBloomPass;
     if (bloomPass) {
       bloomPass.resolution.set(width, height);
     }
@@ -631,7 +631,7 @@ export class VisualEffectsManager {
   updateEffectSettings(settings: any): void {
     // Update bloom settings
     if (settings.bloom) {
-      const bloomPass = this.customPasses.get('bloom') as UnrealBloomPass;
+      const bloomPass = this.customPasses.get('bloom') as unknown as UnrealBloomPass;
       if (bloomPass) {
         if (settings.bloom.strength !== undefined) bloomPass.strength = settings.bloom.strength;
         if (settings.bloom.radius !== undefined) bloomPass.radius = settings.bloom.radius;

@@ -17,38 +17,39 @@ const createInitialPlayer = (): Player => {
 
   // Apply bonuses to initial player
   return {
-    health: 100 + maxHealthBonus,
-    maxHealth: 100 + maxHealthBonus,
-    position: { x: 0, y: 0, z: 0 },
-    abilities: [
-      {
-        id: "basic-attack",
-        name: "Soul Strike",
-        description: "A basic ethereal attack",
-        damage: 20 + damageBonus, // Apply damage bonus from meta-progression
-        cooldown: 0.5,
-        isReady: true,
-        type: "attack",
-        effects: [],
-        animation: "",
-        soundEffect: "",
-        particleEffect: "",
-      },
-    ],
-    experience: 0,
-    level: 1,
-    stats: {
-      strength: 10,
-      agility: 10,
-      vitality: 10,
-      wisdom: 10,
-      criticalChance: 0.05 + critChanceBonus, // Apply crit chance bonus
-      criticalDamage: 1.5,
-      moveSpeed: 8 * moveSpeedMultiplier, // Apply move speed multiplier
+  health: 100 + maxHealthBonus,
+  maxHealth: 100 + maxHealthBonus,
+  position: { x: 0, y: 0, z: 0 },
+  abilities: [
+    {
+      id: "basic-attack",
+      name: "Soul Strike",
+      description: "A basic ethereal attack",
+      damage: 20 + damageBonus, // Apply damage bonus from meta-progression
+      cooldown: 0.5,
+      isReady: true,
+      type: "attack",
+      effects: [],
+      animation: "",
+      soundEffect: "",
+      particleEffect: "",
     },
-    equipment: [],
-    activeBuffs: [],
-  };
+  ],
+  experience: 0,
+  level: 1,
+  stats: {
+    strength: 10,
+    agility: 10,
+    vitality: 10,
+    wisdom: 10,
+    criticalChance: 0.05 + critChanceBonus, // Apply crit chance bonus
+    criticalDamage: 1.5,
+    moveSpeed: 8 * moveSpeedMultiplier, // Apply move speed multiplier
+  },
+  equipment: [],
+  activeBuffs: [],
+  characterClass: undefined,
+};
 };
 
 interface GameStore extends GameState {
@@ -69,6 +70,7 @@ interface GameStore extends GameState {
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
+  gameSession: null,
   player: createInitialPlayer(),
   currentLevel: null,
   currentRoomId: null,

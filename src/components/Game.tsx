@@ -1,59 +1,105 @@
-import { useEffect } from 'react';
-import { useThree } from '@react-three/fiber';
-import { Canvas } from '@react-three/fiber';
+// Game.tsx - Main game component
+import { useEffect, useRef } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
 import { PerspectiveCamera, Sky, Stars } from '@react-three/drei';
-import { EffectComposer, Bloom, ChromaticAberration } from '@react-three/postprocessing';
 import { Physics } from '@react-three/rapier';
-import { Vector2 } from 'three';
-import { Player } from './Player';
-import { Level } from './Level';
-import { UI } from './UI';
-import { ParticleEngine } from '../systems/particles';
-import { AudioManager } from '../systems/audio';
+import * as THREE from 'three';
+
+// Import custom systems
 import { LevelGenerator } from '../systems/levelGeneration';
+import { VisualEffectsManager } from '../systems/visualEffects';
+import { ProjectileManager, ParticleSystem, EnemyPool } from '../systems/objectPooling';
+import { ShaderManager } from '../systems/shaders';
 import { useGameStore } from '../store/gameStore';
-// Import from optimizationComponents.tsx instead of optimizations.ts
-import { PerformanceStats } from '../systems/optimizationComponents';
+import { useGameSessionStore } from '../store/gameSessionStore';
+import { Player } from './Player';
+import { UI } from './UI';
+import { LevelManager } from '../systems/dynamicLevelLoad';
 
-export function Game() {
-  const setCurrentLevel = useGameStore((state) => state.setCurrentLevel);
-  const setCurrentRoomId = useGameStore((state) => state.setCurrentRoomId);
-  const { scene } = useThree();
-  const showPerformanceStats = true; // You can make this a setting
-
+// Game scene setup component
+function GameScene() {
+  const { scene, gl, camera } = useThree();
+  
+  // References to managers
+  const levelManagerRef = useRef<LevelManager | null>(null);
+  const effectsManagerRef = useRef(null);
+  const projectileManagerRef = useRef(null);
+  const enemyPoolRef = useRef(null);
+  const shaderManagerRef = useRef(null);
+  
+  // Start game session
+  const startSession = useGameSessionStore(state => state.startSession);
+  
+  // Initialize all systems on mount
   useEffect(() => {
-    ParticleEngine.getInstance().setScene(scene);
-  }, [scene]);
-
-  useEffect(() => {
-    const levelGenerator = new LevelGenerator(1, 'castle');
-    const level = levelGenerator.generateLevel();
-    setCurrentLevel(level);
-    setCurrentRoomId(level.rooms[0].id);
+    // Start tracking game session
+    startSession();
     
-    AudioManager.playMusic('main');
-    return () => AudioManager.stopMusic();
-  }, [setCurrentLevel, setCurrentRoomId]);
+    // Initialize level manager
+    levelManagerRef.current = LevelManager.getInstance(scene);
+    
+    // Initialize visual effects
+    effectsManagerRef.current = VisualEffectsManager.getInstance(gl, scene, camera);
+    
+    // Initialize object pools
+    projectileManagerRef.current = ProjectileManager.getInstance(scene);
+    ParticleSystem.getInstance(scene);
+    enemyPoolRef.current = EnemyPool.getInstance(scene);
+    
+    // Initialize shader manager
+    shaderManagerRef.current = new ShaderManager();
+    
+    // Load first level
+    levelManagerRef.current.loadLevel('level-1').then(() => {
+      // Set lighting based on entrance room
+      const entranceRoom = levelManagerRef.current.getActiveRoom();
+      if (entranceRoom) {
+        effectsManagerRef.current.setupEnvironmentLighting(entranceRoom.type);
+      }
+    });
+    
+    // Cleanup on unmount
+    return () => {
+      // End game session and save stats
+      useGameSessionStore.getState().endSession();
+    };
+  }, [scene, gl, camera, startSession]);
+  
+  // Update loop
+  useFrame((state, delta) => {
+    // Update all managers
+    if (effectsManagerRef.current) {
+      effectsManagerRef.current.update(delta);
+    }
+    
+    if (projectileManagerRef.current) {
+      projectileManagerRef.current.update();
+    }
+    
+    // Update particle system
+    ParticleSystem.getInstance().update();
+  });
+  
+  return (
+    <>
+      <ambientLight intensity={0.1} />
+      <Physics gravity={[0, -30, 0]}>
+        <Player />
+        {/* Level is managed and rendered by LevelManager */}
+      </Physics>
+    </>
+  );
+}
 
+// Main Game component
+export function Game() {
   return (
     <div className="w-full h-screen">
       <Canvas shadows>
         <PerspectiveCamera makeDefault position={[0, 20, 20]} rotation={[-Math.PI / 4, 0, 0]} fov={50} />
         <Sky sunPosition={[100, 20, 100]} />
         <Stars radius={200} depth={50} count={5000} factor={4} />
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[10, 10, 10]} intensity={1} castShadow shadow-mapSize={[2048, 2048]} />
-        <Physics gravity={[0, -30, 0]}>
-          <Player />
-          <Level />
-        </Physics>
-        <EffectComposer>
-          <Bloom intensity={1.5} luminanceThreshold={0.9} luminanceSmoothing={0.025} />
-          <ChromaticAberration offset={new Vector2(0.002, 0.0016)} radialModulation={true} modulationOffset={0.5} />
-        </EffectComposer>
-        
-        {/* Performance stats overlay */}
-        {showPerformanceStats && <PerformanceStats />}
+        <GameScene />
       </Canvas>
       <UI />
     </div>

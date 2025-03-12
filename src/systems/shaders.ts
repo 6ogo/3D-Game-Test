@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 // -------------------- VERTEX SHADERS --------------------
 
 // Glow shader vertex
@@ -274,9 +276,8 @@ void main() {
 
 // -------------------- USAGE EXAMPLES IN THREE.JS --------------------
 
-/*
 // Create a glow effect material
-function createGlowMaterial(color, intensity = 1.5, power = 2.0) {
+function createGlowMaterial(color: THREE.ColorRepresentation | undefined, intensity = 1.5, power = 2.0) {
   return new THREE.ShaderMaterial({
     uniforms: {
       glowColor: { value: new THREE.Color(color) },
@@ -293,7 +294,7 @@ function createGlowMaterial(color, intensity = 1.5, power = 2.0) {
 }
 
 // Apply outline to an object
-function addOutlineEffect(object, color = 0xffffff, thickness = 0.05) {
+function addOutlineEffect(object: { geometry: { clone: () => any; }; add: (arg0: THREE.Mesh<any, THREE.ShaderMaterial, THREE.Object3DEventMap>) => void; }, color = 0xffffff, thickness = 0.05) {
   // Clone the geometry
   const outlineGeometry = object.geometry.clone();
   
@@ -317,7 +318,7 @@ function addOutlineEffect(object, color = 0xffffff, thickness = 0.05) {
 }
 
 // Create a dissolve effect material
-function createDissolveMaterial(color, edgeColor = 0xffffff, dissolveAmount = 0.0) {
+function createDissolveMaterial(color: THREE.ColorRepresentation | undefined, edgeColor = 0xffffff, dissolveAmount = 0.0) {
   // Create noise texture for dissolve effect
   const noiseTexture = new THREE.TextureLoader().load('textures/noise.png');
   noiseTexture.wrapS = noiseTexture.wrapT = THREE.RepeatWrapping;
@@ -337,10 +338,10 @@ function createDissolveMaterial(color, edgeColor = 0xffffff, dissolveAmount = 0.
 }
 
 // Create a hit flash effect
-function applyHitFlash(object, flashColor = 0xff0000, duration = 0.3) {
+function applyHitFlash(object: { material: THREE.ShaderMaterial; }, flashColor = 0xff0000, duration = 0.3) {
   // Store original material
   const originalMaterial = object.material;
-  const baseColor = originalMaterial.color ? originalMaterial.color.clone() : new THREE.Color(0xffffff);
+  const baseColor = originalMaterial.uniforms.baseColor ? originalMaterial.uniforms.baseColor.value.clone() : new THREE.Color(0xffffff);
   
   // Create hit flash material
   const hitFlashMaterial = new THREE.ShaderMaterial({
@@ -359,7 +360,7 @@ function applyHitFlash(object, flashColor = 0xff0000, duration = 0.3) {
   
   // Animate flash over time
   let elapsedTime = 0;
-  const animate = (delta) => {
+  const animate = (delta: number) => {
     elapsedTime += delta;
     hitFlashMaterial.uniforms.time.value = elapsedTime;
     hitFlashMaterial.uniforms.flashIntensity.value = 1.0 - (elapsedTime / duration);
@@ -433,7 +434,7 @@ function createEnergyMaterial(color = 0x9900ff) {
 }
 
 // Create environment mapping material
-function createEnvironmentMapMaterial(envMap, reflectivity = 0.8) {
+function createEnvironmentMapMaterial(envMap: any, reflectivity = 0.8) {
   return new THREE.ShaderMaterial({
     uniforms: {
       envMap: { value: envMap },
@@ -443,12 +444,20 @@ function createEnvironmentMapMaterial(envMap, reflectivity = 0.8) {
     fragmentShader: environmentMapFragmentShader
   });
 }
-*/
 
 // -------------------- JAVASCRIPT IMPLEMENTATION --------------------
 
 // ShaderManager class for Three.js
-class ShaderManager {
+export class ShaderManager {
+  shaders: {
+    // Vertex shaders
+    glowVertex: string; outlineVertex: string; dissolveVertex: string; waveVertex: string;
+    // Fragment shaders
+    glowFragment: string; outlineFragment: string; dissolveFragment: string; hitFlashFragment: string; hologramFragment: string; fireFragment: string; energyFragment: string; environmentMapFragment: string;
+  };
+  noiseTextures: { [key: string]: THREE.Texture };
+  animatedObjects: Map<any, any>;
+  clock: any;
   constructor() {
     this.shaders = {
       // Vertex shaders
@@ -511,7 +520,7 @@ class ShaderManager {
   }
   
   // Apply outline to an object
-  addOutlineEffect(object, color = 0xffffff, thickness = 0.05) {
+  addOutlineEffect(object: { geometry: any; parent: { add: (arg0: THREE.Mesh<any, THREE.ShaderMaterial, THREE.Object3DEventMap>) => void; }; position: THREE.Vector3Like; rotation: THREE.Euler; }, color = 0xffffff, thickness = 0.05) {
     // Create outline material
     const outlineMaterial = this.createOutlineMaterial(color, thickness);
     
@@ -583,13 +592,13 @@ class ShaderManager {
   }
   
   // Apply dissolve effect over time
-  applyDissolveEffect(object, duration = 2.0, delay = 0.0, onComplete = null) {
+  applyDissolveEffect(object: { material: THREE.ShaderMaterial; }, duration = 2.0, delay = 0.0, onComplete: (() => void) | null = null) {
     // Store original material
     const originalMaterial = object.material;
     
     // Create dissolve material
     const dissolveMaterial = this.createDissolveMaterial(
-      originalMaterial.color ? originalMaterial.color : 0xffffff
+      originalMaterial.uniforms.baseColor ? originalMaterial.uniforms.baseColor.value : new THREE.Color(0xffffff)
     );
     
     // Apply material
@@ -599,7 +608,7 @@ class ShaderManager {
     const startTime = this.clock.elapsedTime + delay;
     const endTime = startTime + duration;
     
-    const updateFunction = (time) => {
+    const updateFunction = (time: number) => {
       if (time < startTime) return false;
       
       const progress = Math.min(1.0, (time - startTime) / duration);
@@ -634,10 +643,10 @@ class ShaderManager {
   }
   
   // Apply hit flash effect
-  applyHitFlash(object, flashColor = 0xff0000, duration = 0.3) {
+  applyHitFlash(object: { material: THREE.ShaderMaterial; }, flashColor = 0xff0000, duration = 0.3) {
     // Store original material
     const originalMaterial = object.material;
-    const baseColor = originalMaterial.color ? originalMaterial.color.clone() : new THREE.Color(0xffffff);
+    const baseColor = originalMaterial.uniforms.baseColor ? originalMaterial.uniforms.baseColor.value.clone() : new THREE.Color(0xffffff);
     
     // Create hit flash material
     const hitFlashMaterial = this.createHitFlashMaterial(baseColor, flashColor);
@@ -649,7 +658,7 @@ class ShaderManager {
     const startTime = this.clock.elapsedTime;
     const endTime = startTime + duration;
     
-    const updateFunction = (time) => {
+    const updateFunction = (time: number) => {
       const elapsed = time - startTime;
       hitFlashMaterial.uniforms.time.value = elapsed;
       hitFlashMaterial.uniforms.flashIntensity.value = 1.0 - (elapsed / duration);
@@ -759,7 +768,7 @@ class ShaderManager {
   }
   
   // Update time-based uniforms in materials
-  updateTimeBasedUniforms(time) {
+  updateTimeBasedUniforms(time: any) {
     // Find and update materials in the scene
     // This would typically iterate through scene objects in a full implementation
   }

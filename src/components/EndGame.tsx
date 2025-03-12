@@ -114,7 +114,16 @@ export function EndGameScreen() {
         // If Web Share API is available
         if (navigator.share) {
           try {
-            const file = new File([blob], 'my-run-stats.png', { type: 'image/png' });
+            if (blob) {
+              const file = new File([blob], 'my-run-stats.png', { type: 'image/png' });
+              await navigator.share({
+                title: 'My Run Results',
+                text: `I completed a run in ${formatTimeDisplay(stats.totalTime)}!`,
+                files: [file]
+              });
+            } else {
+              console.error('Blob is null');
+            }
             await navigator.share({
               title: 'My Run Results',
               text: `I completed a run in ${formatTimeDisplay(stats.totalTime)}!`,
@@ -130,13 +139,17 @@ export function EndGameScreen() {
           setShareMenuOpen(true);
           
           // Create download link
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = 'my-run-stats.png';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'my-run-stats.png';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          } else {
+            console.error('Blob is null');
+          }
         }
       }, 'image/png');
     } catch (err) {
