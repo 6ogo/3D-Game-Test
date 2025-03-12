@@ -139,7 +139,7 @@ export interface Treasure {
 
 export interface ParticleSystem {
   id: string;
-  type: 'hit' | 'heal' | 'buff' | 'ability';
+  type: 'hit' | 'heal' | 'buff' | 'ability' | 'death';
   position: Vector3;
   color: string;
   size: number;

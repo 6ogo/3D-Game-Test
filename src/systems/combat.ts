@@ -2,8 +2,11 @@ import { Vector3, Ability, Enemy, Player, ParticleSystem, AbilityEffect } from '
 import { ParticleEngine } from './particles';
 import { AudioManager } from './audio';
 import { calculateDamage } from './stats';
+import { useGameStore } from '../store/gameStore';
+import { VisualEffectsManager } from './visualEffects';
 
 export class CombatSystem {
+  [x: string]: any;
   private static instance: CombatSystem;
   private particles: ParticleSystem[] = [];
 
@@ -102,6 +105,126 @@ export class CombatSystem {
     
     AudioManager.playSound('heal');
   }
+/**
+ * Register a hit on an enemy or player
+ */
+registerHit(source: Player | Enemy, target: Player | Enemy, damage: number, isCritical: boolean = false): void {
+  // Apply damage
+  this.applyDamage(target, damage);
+  
+  // Get position for visual effect
+  const position = target.position;
+  
+  // Create hit particles
+  const color = isCritical ? '#ffff00' : '#ff0000';
+  const size = isCritical ? 0.3 : 0.2;
+  const count = isCritical ? 30 : 20;
+  
+  ParticleEngine.getInstance().createEffect({
+    id: `hit-${Date.now()}`,
+    type: 'hit',
+    position,
+    color,
+    size,
+    duration: isCritical ? 700 : 500,
+    spread: isCritical ? 1.5 : 1,
+    count
+  });
+  
+  // Play sound
+  AudioManager.playSound(isCritical ? 'ability' : 'hit', {
+    rate: isCritical ? 1.2 : 1.0,
+    volume: isCritical ? 0.7 : 0.5
+  });
+  
+  // Create floating damage text (would integrate with UI system)
+  this.createFloatingText(position, damage, isCritical);
+  
+  // Register in game store for stats tracking
+  if (source.constructor.name === 'Player') {
+    useGameStore.getState().updateDamageDealt(damage);
+  } else {
+    useGameStore.getState().updateDamageTaken(damage);
+  }
+  
+  // Check for defeat
+  if (target.health <= 0) {
+    this.handleDefeat(target);
+  }
+}
+
+/**
+ * Handle entity defeat (player or enemy)
+ */
+private handleDefeat(target: Player | Enemy): void {
+  if (target.constructor.name === 'Player') {
+    // Player defeated
+    useGameStore.getState().setGameOver(true);
+    AudioManager.playSound('death');
+    
+    // Create death effect
+    ParticleEngine.getInstance().createEffect({
+      id: `player-death-${Date.now()}`,
+      type: 'death',
+      position: target.position,
+      color: '#4444ff',
+      size: 0.4,
+      duration: 2000,
+      spread: 2,
+      count: 50
+    });
+  } else {
+    // Enemy defeated
+    const enemy = target as Enemy;
+    const enemyPosition = enemy.position;
+    
+    // Award experience to player
+    useGameStore.getState().gainExperience(enemy.experience);
+    
+    // Create appropriate death effect based on enemy type
+    let color = '#ff4444';
+    let size = 0.3;
+    let count = 30;
+    
+    if (enemy.type === 'Elite') {
+      color = '#ff00ff';
+      size = 0.4;
+      count = 40;
+    } else if (enemy.type === 'Boss') {
+      color = '#ff0000';
+      size = 0.5;
+      count = 60;
+      
+      // Boss defeat triggers victory
+      setTimeout(() => {
+        useGameStore.getState().endGame(true);
+      }, 2000);
+    }
+    
+    // Create death effect
+    ParticleEngine.getInstance().createEffect({
+      id: `enemy-death-${Date.now()}`,
+      type: 'death',
+      position: enemyPosition,
+      color,
+      size,
+      duration: 1500,
+      spread: enemy.type === 'Boss' ? 3 : 1.5,
+      count
+    });
+    
+    // Play appropriate sound
+    AudioManager.playSound('death', {
+      rate: enemy.type === 'Boss' ? 0.8 : 1.0,
+      volume: enemy.type === 'Boss' ? 0.8 : 0.6
+    });
+    
+    // For boss death, also flash the screen
+    if (enemy.type === 'Boss') {
+      VisualEffectsManager.getInstance()?.flashScreen(color, 0.7, 1.0);
+    }
+  }
+}
 
   private applyBuff(_target: Player | Enemy, _effect: AbilityEffect): void {
     // TODO: Implementation for buff application
