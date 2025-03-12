@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { AudioManager } from '../systems/audio';
 import { useMetaProgressionStore } from './metaProgressionStore';
+import { useGameStore } from './gameStore';
 
 // Game scene types
 export type GameScene = 'home' | 'game' | 'victory' | 'defeat';
@@ -14,7 +15,9 @@ export interface GameSession {
   soulsCollected: number;
   damageDealt: number;
   damageTaken: number;
+  seed?: string;
   activeBoons: string[];
+  deaths: number;
 }
 
 interface GameFlowState {
@@ -51,9 +54,11 @@ const emptySession: GameSession = {
   enemiesDefeated: 0,
   bossDefeated: false,
   soulsCollected: 0,
-  damageDealt: 0,
-  damageTaken: 0,
+  seed: 'random',
   activeBoons: [],
+  deaths: 0,
+  damageTaken: 0,
+  damageDealt: 0
 };
 
 export const useGameFlowStore = create<GameFlowState>((set) => ({
@@ -196,16 +201,25 @@ export function completeRun(victory: boolean) {
     soulsCollected: session.soulsCollected
   });
   
+  // Set the game session in the game store for the end game screen
+  useGameStore.getState().setGameSession({
+    seed: session.seed || 'random',
+    totalTime: duration,
+    deaths: session.deaths || 0,
+    enemiesKilled: session.enemiesDefeated || 0,
+    upgradesCollected: session.activeBoons?.length || 0,
+    roomsCleared: session.roomsCleared || 0,
+    bossKillTime: session.bossDefeated ? duration : null,
+    damageDealt: session.damageDealt || 0,
+    damageTaken: session.damageTaken || 0,
+    soulsCollected: session.soulsCollected || 0,
+    startTime: session.startTime
+  });
+  
   // Transition to appropriate ending screen
   if (victory) {
     useGameFlowStore.getState().transitionToVictory();
   } else {
     useGameFlowStore.getState().transitionToDefeat();
   }
-  
-  // Return to home after delay
-  setTimeout(() => {
-    useGameFlowStore.getState().transitionToHome();
-    useGameFlowStore.getState().clearSession();
-  }, 5000); // 5 seconds to show victory/defeat screen
 }

@@ -84,6 +84,7 @@ export type GameScene = 'home' | 'game' | 'upgrade' | 'end';
 
 // Extend the game store interface
 interface GameStore extends GameState {
+  [x: string]: any;
   // Game flow
   currentScene: GameScene;
   gameSession: GameSession | null;
