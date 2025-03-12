@@ -1,38 +1,54 @@
 import { create } from "zustand";
-import { GameState, Player, Level, Room, Boon } from "../types/game";
+import { GameState, Player, Level, Boon } from "../types/game";
 import { BOONS } from "../systems/progression";
+import {
+  getMetaProgressionBonuses,
+} from "./metaProgressionStore";
+import { useGameFlowStore, completeRun } from "./gameFlowStore";
 
-const initialPlayer: Player = {
-  health: 100,
-  maxHealth: 100,
-  position: { x: 0, y: 0, z: 0 },
-  abilities: [
-    {
-      id: "basic-attack",
-      name: "Soul Strike",
-      description: "A basic ethereal attack",
-      damage: 20,
-      cooldown: 0.5,
-      isReady: true,
-      type: "attack",
-      effects: [],
-      animation: "",
-      soundEffect: "",
-      particleEffect: "",
+const createInitialPlayer = (): Player => {
+  // Get meta-progression bonuses
+  const {
+    maxHealthBonus = 0,
+    damageBonus = 0,
+    critChanceBonus = 0,
+    moveSpeedMultiplier = 1,
+  } = getMetaProgressionBonuses();
+
+  // Apply bonuses to initial player
+  return {
+    health: 100 + maxHealthBonus,
+    maxHealth: 100 + maxHealthBonus,
+    position: { x: 0, y: 0, z: 0 },
+    abilities: [
+      {
+        id: "basic-attack",
+        name: "Soul Strike",
+        description: "A basic ethereal attack",
+        damage: 20 + damageBonus, // Apply damage bonus from meta-progression
+        cooldown: 0.5,
+        isReady: true,
+        type: "attack",
+        effects: [],
+        animation: "",
+        soundEffect: "",
+        particleEffect: "",
+      },
+    ],
+    experience: 0,
+    level: 1,
+    stats: {
+      strength: 10,
+      agility: 10,
+      vitality: 10,
+      wisdom: 10,
+      criticalChance: 0.05 + critChanceBonus, // Apply crit chance bonus
+      criticalDamage: 1.5,
+      moveSpeed: 8 * moveSpeedMultiplier, // Apply move speed multiplier
     },
-  ],
-  experience: 0,
-  level: 1,
-  stats: {
-    strength: 10,
-    agility: 10,
-    vitality: 10,
-    wisdom: 10,
-    criticalChance: 0.05,
-    criticalDamage: 1.5,
-  },
-  equipment: [],
-  activeBuffs: [],
+    equipment: [],
+    activeBuffs: [],
+  };
 };
 
 interface GameStore extends GameState {
@@ -41,7 +57,7 @@ interface GameStore extends GameState {
   takeDamage: (amount: number) => void;
   heal: (amount: number) => void;
   gainExperience: (amount: number) => void;
-  resetGame: () => void;
+  resetGame: (customPlayer?: Partial<Player>) => void;
   setCurrentLevel: (level: Level) => void;
   setCurrentRoomId: (roomId: string) => void;
   isUpgradeAvailable: boolean;
@@ -51,8 +67,8 @@ interface GameStore extends GameState {
   removeEnemy: (roomId: string, enemyId: string) => void;
 }
 
-export const useGameStore = create<GameStore>((set) => ({
-  player: initialPlayer,
+export const useGameStore = create<GameStore>((set, get) => ({
+  player: createInitialPlayer(),
   currentLevel: null,
   currentRoomId: null,
   isPaused: false,
@@ -66,7 +82,19 @@ export const useGameStore = create<GameStore>((set) => ({
   sfxVolume: 0.5,
 
   setCurrentLevel: (level) => set({ currentLevel: level }),
-  setCurrentRoomId: (roomId) => set({ currentRoomId: roomId }),
+
+  setCurrentRoomId: (roomId) => {
+    // Register room cleared in game flow store when changing rooms
+    if (roomId !== get().currentRoomId && get().currentRoomId) {
+      const currentRoomId = get().currentRoomId;
+      if (currentRoomId) {
+        useGameFlowStore.getState().registerRoomCleared(currentRoomId);
+      }
+    }
+
+    set({ currentRoomId: roomId });
+  },
+
   isUpgradeAvailable: false,
   availableBoons: [],
 
@@ -81,63 +109,105 @@ export const useGameStore = create<GameStore>((set) => ({
   },
 
   selectBoon: (boonId) => {
-    const state = useGameStore.getState();
+    const state = get();
     const boon = state.availableBoons.find((b) => b.id === boonId);
     if (boon) {
       const player = state.player;
+
+      // Apply the boon
       boon.apply(player);
+
+      // Register the boon in the game session
+      useGameFlowStore.getState().registerBoonCollected(boonId);
+
       set({ player, isUpgradeAvailable: false, availableBoons: [] });
     }
   },
 
-  removeEnemy: (roomId, enemyId) =>
+  removeEnemy: (roomId, enemyId) => {
     set((state) => {
-      if (state.currentLevel) {
-        const room = state.currentLevel.rooms.find((r) => r.id === roomId);
-        if (room) {
-          const enemy = room.enemies.find((e) => e.id === enemyId);
-          if (enemy) {
-            room.enemies = room.enemies.filter((e) => e.id !== enemyId);
-            state.gainExperience(enemy.experience);
-            if (room.enemies.length === 0) {
-              if (room.type === "boss") {
-                alert("You have defeated the boss and won the game!");
-                return {
-                  currentLevel: { ...state.currentLevel },
-                  isGameOver: true,
-                };
-              } else {
-                const boons = [...BOONS];
-                const selectedBoons = [];
-                for (let i = 0; i < 2; i++) {
-                  const index = Math.floor(Math.random() * boons.length);
-                  selectedBoons.push(boons.splice(index, 1)[0]);
-                }
-                return {
-                  currentLevel: { ...state.currentLevel },
-                  isUpgradeAvailable: true,
-                  availableBoons: selectedBoons,
-                };
-              }
-            }
+      if (!state.currentLevel || !roomId) return state;
+
+      const room = state.currentLevel.rooms.find((r) => r.id === roomId);
+      if (!room) return state;
+
+      const enemy = room.enemies.find((e) => e.id === enemyId);
+      if (!enemy) return state;
+
+      // Remove enemy from room
+      room.enemies = room.enemies.filter((e) => e.id !== enemyId);
+
+      // Award experience
+      state.gainExperience(enemy.experience);
+
+      // Register the enemy defeat in game flow
+      useGameFlowStore
+        .getState()
+        .registerEnemyDefeated(enemyId, enemy.experience);
+
+      // Register damage dealt equal to enemy max health
+      useGameFlowStore.getState().registerDamageDealt(enemy.maxHealth);
+
+      // Check if this was a boss
+      if (enemy.type === "Boss") {
+        useGameFlowStore.getState().registerBossDefeated();
+
+        // Complete the run with victory
+        completeRun(true);
+
+        return {
+          currentLevel: { ...state.currentLevel },
+          isGameOver: true,
+        };
+      }
+
+      // Check if room is cleared
+      if (room.enemies.length === 0) {
+        // If not a boss room, show upgrades
+        if (room.type !== "boss") {
+          const boons = [...BOONS];
+          const selectedBoons = [];
+          for (let i = 0; i < 2; i++) {
+            const index = Math.floor(Math.random() * boons.length);
+            selectedBoons.push(boons.splice(index, 1)[0]);
           }
+          return {
+            currentLevel: { ...state.currentLevel },
+            isUpgradeAvailable: true,
+            availableBoons: selectedBoons,
+          };
         }
       }
-      return {
-        currentLevel: state.currentLevel
-          ? { ...state.currentLevel }
-          : state.currentLevel,
-      };
-    }),
 
-  takeDamage: (amount) =>
-    set((state) => ({
-      player: {
-        ...state.player,
-        health: Math.max(0, state.player.health - amount),
-      },
-      isGameOver: state.player.health - amount <= 0,
-    })),
+      return {
+        currentLevel: { ...state.currentLevel },
+      };
+    });
+  },
+
+  takeDamage: (amount) => {
+    // Register damage taken in game flow
+    useGameFlowStore.getState().registerDamageTaken(amount);
+
+    set((state) => {
+      const newHealth = Math.max(0, state.player.health - amount);
+      const isGameOver = newHealth <= 0;
+
+      // If player died, complete run with defeat
+      if (isGameOver) {
+        completeRun(false);
+      }
+
+      return {
+        player: {
+          ...state.player,
+          health: newHealth,
+        },
+        isGameOver,
+      };
+    });
+  },
+
   heal: (amount) =>
     set((state) => ({
       player: {
@@ -145,6 +215,7 @@ export const useGameStore = create<GameStore>((set) => ({
         health: Math.min(state.player.maxHealth, state.player.health + amount),
       },
     })),
+
   gainExperience: (amount) =>
     set((state) => {
       const newExperience = state.player.experience + amount;
@@ -171,12 +242,21 @@ export const useGameStore = create<GameStore>((set) => ({
       }
       return { player: { ...state.player, experience: newExperience } };
     }),
-  resetGame: () =>
+
+  resetGame: (customPlayer = {}) => {
+    // Create fresh player with meta-progression bonuses
+    const basePlayer = createInitialPlayer();
+
+    // Start a new game session
+    useGameFlowStore.getState().startNewSession();
+
+    // Apply any custom overrides (useful for testing)
     set({
-      player: initialPlayer,
+      player: { ...basePlayer, ...customPlayer },
       currentLevel: null,
       currentRoomId: null,
       isPaused: false,
       isGameOver: false,
-    }),
+    });
+  },
 }));
