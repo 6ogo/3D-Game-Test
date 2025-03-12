@@ -146,7 +146,7 @@ export interface ParticleSystem {
 
 export interface GameState {
   player: Player;
-  currentLevel: Level;
+  currentLevel: Level | null;
   enemies: Enemy[];
   particles: ParticleSystem[];
   isPaused: boolean;

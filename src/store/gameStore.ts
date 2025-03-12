@@ -79,7 +79,7 @@ export const useGameStore = create<GameStore>((set) => ({
           if (room.type === 'boss') {
             alert('You have defeated the boss and won the game!');
             return { currentLevel: { ...state.currentLevel }, isGameOver: true };
-          } else if (room.type !== 'boss') {
+          } else {
             const boons = [...BOONS];
             const selectedBoons = [];
             for (let i = 0; i < 2; i++) {
