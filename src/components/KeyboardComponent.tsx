@@ -1,22 +1,46 @@
 import { KeyboardControls } from '@react-three/drei';
+import { ReactNode } from 'react';
 
-function App() {
+// Define the controls map
+export const controls = [
+  { name: 'forward', keys: ['KeyW', 'ArrowUp'] },
+  { name: 'backward', keys: ['KeyS', 'ArrowDown'] },
+  { name: 'left', keys: ['KeyA', 'ArrowLeft'] },
+  { name: 'right', keys: ['KeyD', 'ArrowRight'] },
+  { name: 'jump', keys: ['Space'] },
+  { name: 'attack', keys: ['KeyJ'] },
+  { name: 'special', keys: ['KeyK'] },
+  { name: 'interact', keys: ['KeyE'] },
+  { name: 'inventory', keys: ['KeyI'] },
+  { name: 'pause', keys: ['Escape'] },
+];
+
+// Types for our controls
+export type ControlName = 
+  | 'forward' 
+  | 'backward' 
+  | 'left' 
+  | 'right' 
+  | 'jump' 
+  | 'attack' 
+  | 'special' 
+  | 'interact' 
+  | 'inventory' 
+  | 'pause';
+
+export interface GameControls {
+  [key: string]: boolean;
+}
+
+interface Props {
+  children: ReactNode;
+}
+
+// Component to wrap the game with keyboard controls
+export function GameKeyboardControls({ children }: Props) {
   return (
-    <KeyboardControls
-      map={[
-        { name: 'forward', keys: ['KeyW'] },
-        { name: 'backward', keys: ['KeyS'] },
-        { name: 'left', keys: ['KeyA'] },
-        { name: 'right', keys: ['KeyD'] },
-        { name: 'jump', keys: ['Space'] },
-        { name: 'action1', keys: ['KeyJ'] },
-      ]}
-    >
-      <div>
-        {/* Your scene components, e.g., <Canvas>...</Canvas> */}
-      </div>
+    <KeyboardControls map={controls}>
+      {children}
     </KeyboardControls>
   );
 }
-
-export default App;
