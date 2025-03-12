@@ -1,24 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useMetaProgressionStore } from '../store/metaProgressionStore';
-import { formatTime } from '../utils/formatters';
 import html2canvas from 'html2canvas';
 
 /**
  * EndGameScreen - Displays statistics after completing a run
- * 
- * Shows run statistics including:
- * - Time taken
- * - Deaths
- * - Upgrades collected
- * - Enemies killed
- * - Boss kill time
- * 
- * Also provides social sharing functionality
  */
 export function EndGameScreen() {
   const { player, resetGame } = useGameStore();
-  const { addRunStats } = useMetaProgressionStore();
+  const addRunStats = useMetaProgressionStore(state => state.addRunStats);
   const [showScreen, setShowScreen] = useState(true);
   const [capturing, setCapturing] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
@@ -97,10 +87,10 @@ export function EndGameScreen() {
     try {
       const element = document.getElementById('end-game-stats');
       if (!element) {
-        console.error('Element not found for screenshot');
-        setCapturing(false);
+        console.error('Stats element not found');
         return;
       }
+      
       const canvas = await html2canvas(element, {
         backgroundColor: null,
         scale: 2,
@@ -111,23 +101,19 @@ export function EndGameScreen() {
       
       // Convert to blob
       canvas.toBlob(async (blob) => {
+        if (!blob) {
+          console.error('Failed to create blob');
+          return;
+        }
+        
         // If Web Share API is available
         if (navigator.share) {
           try {
-            if (blob) {
-              const file = new File([blob], 'my-run-stats.png', { type: 'image/png' });
-              await navigator.share({
-                title: 'My Run Results',
-                text: `I completed a run in ${formatTimeDisplay(stats.totalTime)}!`,
-                files: [file]
-              });
-            } else {
-              console.error('Blob is null');
-            }
+            const imageFile = new File([blob], 'my-run-stats.png', { type: 'image/png' });
             await navigator.share({
               title: 'My Run Results',
-              text: `I completed a run in ${formatTimeDisplay(stats.totalTime)}!`,
-              files: [file]
+              text: `I completed a run in ${formatTimeDisplay(stats?.totalTime || 0)}!`,
+              files: [imageFile]
             });
           } catch (err) {
             console.error('Error sharing:', err);
@@ -139,17 +125,13 @@ export function EndGameScreen() {
           setShareMenuOpen(true);
           
           // Create download link
-          if (blob) {
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = 'my-run-stats.png';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          } else {
-            console.error('Blob is null');
-          }
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'my-run-stats.png';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
         }
       }, 'image/png');
     } catch (err) {
@@ -161,7 +143,7 @@ export function EndGameScreen() {
 
   // Share to specific platform
   const shareToSocial = (platform: string) => {
-    const text = `I completed a run in ${formatTimeDisplay(stats.totalTime)} with ${animatedStats.enemiesKilled} enemies defeated!`;
+    const text = `I completed a run in ${formatTimeDisplay(stats?.totalTime || 0)} with ${animatedStats.enemiesKilled} enemies defeated!`;
     const url = window.location.href;
     
     let shareUrl;
@@ -239,7 +221,7 @@ export function EndGameScreen() {
           {/* Game info */}
           <div className="flex justify-between text-sm text-gray-400">
             <div>
-              <div>Character: {player.characterClass}</div>
+              <div>Character: Player</div>
               <div>Level: {player.level}</div>
             </div>
             <div className="text-right">

@@ -128,7 +128,7 @@ export class LevelManager {
     this.currentLevel = levelData;
     
     // Start by loading the entrance room
-    const entranceRoom = levelData.rooms.find((r: { isEntrance: any; }) => r.isEntrance);
+    const entranceRoom = levelData.rooms.find((r: Room) => r.isEntrance);
     if (entranceRoom) {
       await this.activateRoom(entranceRoom.id);
     }
@@ -233,7 +233,8 @@ export class LevelManager {
         isActive: false,
         isCleared: roomData.isCleared,
         connections: roomData.connections,
-        position: roomData.position
+        position: roomData.position,
+        enemies: []
       };
       
       // Add to scene
@@ -274,7 +275,9 @@ export class LevelManager {
     if (!room) return;
     
     // Remove from scene
-    this.levelScene.remove(room.object);
+    if (room.object) {
+      this.levelScene.remove(room.object);
+    }
     
     // Dispose of geometries and textures
     this.disposeRoomResources(room);
@@ -288,7 +291,7 @@ export class LevelManager {
    */
   private disposeRoomResources(room: Room): void {
     // Recursively dispose of geometries, materials, and textures
-    room.object.traverse((object: { geometry: { dispose: () => void; }; material: any[] | THREE.Material; }) => {
+    room.object!.traverse((object: THREE.Object3D) => {
       if (object instanceof THREE.Mesh) {
         if (object.geometry) {
           object.geometry.dispose();
@@ -305,7 +308,7 @@ export class LevelManager {
     });
     
     // Clean up any other resources
-    room.entities.forEach((entity: any) => {
+    room.entities!.forEach((entity: any) => {
       // Dispose entity-specific resources
       // This would depend on your entity implementation
     });
@@ -367,7 +370,7 @@ export class LevelManager {
       prop.position.copy(propData.position);
       
       // Add to room
-      room.object.add(prop);
+      room.object!.add(prop);
       room.props.push({
         object: prop,
         type: propData.type,
@@ -394,8 +397,8 @@ export class LevelManager {
       enemy.position.copy(spawnData.position);
       
       // Add to room
-      room.object.add(enemy);
-      room.entities.push({
+      room.object!.add(enemy);
+      room.entities!.push({
         object: enemy,
         type: spawnData.type,
         health: spawnData.health,
@@ -722,7 +725,7 @@ export class LevelManager {
     
     // Example: For combat rooms, activate enemies
     if (room.type === 'normal' || room.type === 'elite' || room.type === 'boss') {
-      room.entities.forEach((entity: any) => {
+      room.entities!.forEach((entity: any) => {
         // Activate entity AI or behavior
         // This would depend on your game implementation
       });
@@ -749,8 +752,8 @@ export class LevelManager {
     }
     
     // Remove enemies
-    room.entities.forEach((entity: { object: any; }) => {
-      room.object.remove(entity.object);
+    room.entities!.forEach((entity: { object: any; }) => {
+      room.object!.remove(entity.object);
     });
     room.entities = [];
     
