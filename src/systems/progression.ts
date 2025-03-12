@@ -70,7 +70,8 @@ export class ProgressionSystem {
       vitality: 10 + player.level * 2,
       wisdom: 10 + player.level * 2,
       criticalChance: 0.05,
-      criticalDamage: 1.5
+      criticalDamage: 1.5,
+      moveSpeed: 8
     };
 
     // Add equipment bonuses
