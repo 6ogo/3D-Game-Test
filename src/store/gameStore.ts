@@ -52,6 +52,7 @@ const createInitialPlayer = (): Player => {
 };
 
 interface GameStore extends GameState {
+  gameSession: any;
   currentLevel: Level | null;
   currentRoomId: string | null;
   takeDamage: (amount: number) => void;

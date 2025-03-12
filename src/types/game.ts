@@ -5,6 +5,7 @@ export interface Vector3 {
 }
 
 export interface Player {
+  characterClass: ReactNode;
   health: number;
   maxHealth: number;
   position: Vector3;
