@@ -40,10 +40,15 @@ export function UI() {
         </div>
         <div className="text-white mt-2">Health: {player.health}/{player.maxHealth}</div>
       </div>
-      <div className="absolute top-4 right-4 bg-black/50 p-4 rounded-lg text-white">
-        <div>Level: {player.level}</div>
-        <div>XP: {player.experience}/1000</div>
-      </div>
+      <div className="absolute bottom-4 left-4 bg-black/50 p-4 rounded-lg text-white">
+      <div>Level: {player.level}</div>
+      <div>Experience: {player.experience}</div>
+      <div>Stats:</div>
+      <div>Strength: {player.stats.strength}</div>
+      <div>Agility: {player.stats.agility}</div>
+      <div>Vitality: {player.stats.vitality}</div>
+      <div>Wisdom: {player.stats.wisdom}</div>
+    </div>
       {isGameOver && (
         <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
           <div className="text-center">

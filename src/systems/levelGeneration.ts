@@ -119,7 +119,7 @@ export class LevelGenerator {
     };
     return {
       id: `enemy-${Date.now()}-${Math.random()}`,
-      type: isElite ? 'elite' : 'normal',
+      type: isElite ? 'Elite' : 'Normal',
       health: isElite ? 200 : 100,
       maxHealth: isElite ? 200 : 100,
       position,
@@ -161,7 +161,7 @@ export class LevelGenerator {
     // Boss generation logic here
     return {
       id: `boss-${Date.now()}`,
-      type: 'boss',
+      type: 'Boss',
       health: 1000,
       maxHealth: 1000,
       position: { x: 0, y: 0, z: 0 },

@@ -72,7 +72,7 @@ export interface Buff {
 
 export interface Enemy {
   id: string;
-  type: string;
+  type: 'Normal' | 'Elite' | 'Boss';
   health: number;
   maxHealth: number;
   position: Vector3;

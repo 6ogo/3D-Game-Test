@@ -2,51 +2,68 @@ import { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../store/gameStore';
 import * as THREE from 'three';
-import { RigidBody, CapsuleCollider } from '@react-three/rapier';
+import { ProgressionSystem } from '../systems/progression';
+import { CapsuleCollider, RigidBody } from '@react-three/rapier';
+import { useKeyboardControls } from '@react-three/drei';
 
 export function Player() {
   const rigidBodyRef = useRef<any>(null);
-  const meshRef = useRef<THREE.Mesh>(null);
-  const player = useGameStore((state) => state.player);
+  const meshRef = useRef<THREE.Group>(null);
+  const { player, currentRoomId } = useGameStore();
   const currentLevel = useGameStore((state) => state.currentLevel);
-  const currentRoomId = useGameStore((state) => state.currentRoomId);
+  const currentRoom = useGameStore((state) => state.currentLevel?.rooms.find((r) => r.id === currentRoomId));
   const setCurrentRoomId = useGameStore((state) => state.setCurrentRoomId);
   const moveDirection = useRef(new THREE.Vector3());
   const currentVelocity = useRef(new THREE.Vector3());
   const [isDashing, setIsDashing] = useState(false);
   const dashCooldown = useRef(0);
+  const [subscribeKeys, getKeys] = useKeyboardControls();
 
   useFrame((state, delta) => {
     if (!meshRef.current || !rigidBodyRef.current || !currentLevel || !currentRoomId || useGameStore.getState().isUpgradeAvailable) return;
-  
-    const currentRoom = currentLevel.rooms.find(room => room.id === currentRoomId);
+
+    const currentRoom = currentLevel.rooms.find((room: { id: string; }) => room.id === currentRoomId);
     if (!currentRoom) return;
-  
+
     if (dashCooldown.current > 0) dashCooldown.current -= delta;
-  
-    const keys = {
-      KeyW: !!state.events.current?.keysPressed['KeyW'],
-      KeyS: !!state.events.current?.keysPressed['KeyS'],
-      KeyA: !!state.events.current?.keysPressed['KeyA'],
-      KeyD: !!state.events.current?.keysPressed['KeyD'],
-      Space: !!state.events.current?.keysPressed[' '],
-      KeyJ: !!state.events.current?.keysPressed['KeyJ']
-    };
-  
+
+    const keys = getKeys();
+    // Access keyboard states as booleans
+    const keyW = keys.forward;    // true if 'W' is pressed
+    const keyS = keys.backward;   // true if 'S' is pressed
+    const keyA = keys.left;       // true if 'A' is pressed
+    const keyD = keys.right;      // true if 'D' is pressed
+    const space = keys.jump;      // true if 'Space' is pressed
+    const keyJ = keys.action1;    // true if 'J' is pressed
+    
+    console.log({
+      KeyW: keyW,
+      KeyS: keyS,
+      KeyA: keyA,
+      KeyD: keyD,
+      Space: space,
+      KeyJ: keyJ,
+    });
+
+
     // Attack
     if (keys.KeyJ) {
       const attackRange = 2;
-      const attackDamage = player.abilities[0].damage; // Use 'basic-attack' damage
-      currentRoom.enemies.forEach(enemy => {
+      const ability = player.abilities[0]; // e.g., 'basic-attack'
+      const stats = ProgressionSystem.getInstance().calculateStats(player);
+      const damage = ProgressionSystem.getInstance().calculateDamage(ability, stats);
+      currentRoom?.enemies.forEach((enemy: { position: { x: number | undefined; y: number | undefined; z: number | undefined; }; health: number; id: string; }) => {
         const enemyPos = new THREE.Vector3(enemy.position.x, enemy.position.y, enemy.position.z);
         const distance = worldPosition.distanceTo(enemyPos);
         if (distance < attackRange) {
-          enemy.health -= attackDamage;
-          if (enemy.health <= 0) useGameStore.getState().removeEnemy(currentRoomId, enemy.id);
+          enemy.health -= damage;
+          if (enemy.health <= 0) {
+            useGameStore.getState().removeEnemy(currentRoomId, enemy.id);
+          }
         }
       });
     }
-  
+
     moveDirection.current.set(0, 0, 0);
     if (keys.KeyW) moveDirection.current.z -= 1;
     if (keys.KeyS) moveDirection.current.z += 1;
@@ -63,7 +80,7 @@ export function Player() {
 
     const speed = isDashing ? 20 : 8;
     const acceleration = isDashing ? 50 : 15;
-    const damping = isDashing ? 0.95 : 0.85;
+    const damping = isDashing ? 0.95 : 0.75;
 
     currentVelocity.current.x += moveDirection.current.x * acceleration * delta;
     currentVelocity.current.z += moveDirection.current.z * acceleration * delta;
@@ -76,22 +93,22 @@ export function Player() {
 
     if (moveDirection.current.lengthSq() > 0) {
       const angle = Math.atan2(moveDirection.current.x, moveDirection.current.z);
-      meshRef.current.rotation.y = angle;
+      meshRef.current!.rotation.y = angle;
     }
 
-    const worldPosition = meshRef.current.getWorldPosition(new THREE.Vector3());
+    const worldPosition = meshRef.current!.getWorldPosition(new THREE.Vector3());
     useGameStore.setState({ player: { ...player, position: { x: worldPosition.x, y: worldPosition.y, z: worldPosition.z } } });
 
     // Room switching
-    currentRoom.connections.forEach((connectedRoomId, index) => {
-      const doorPosition = index === 0 ? [currentRoom.size.width - 0.5, 1, currentRoom.size.height / 2] : [0.5, 1, currentRoom.size.height / 2];
+    currentRoom!.connections.forEach((connectedRoomId, index) => {
+      const doorPosition = index === 0 ? [currentRoom!.size.width - 0.5, 1, currentRoom!.size.height / 2] : [0.5, 1, currentRoom!.size.height / 2];
       const distance = worldPosition.distanceTo(new THREE.Vector3(doorPosition[0], doorPosition[1], doorPosition[2]));
       if (distance < 1) {
         setCurrentRoomId(connectedRoomId);
-        const newRoom = currentLevel.rooms.find(room => room.id === connectedRoomId);
+        const newRoom = currentLevel!.rooms.find((room: { id: string; }) => room.id === connectedRoomId);
         if (newRoom) {
           const newPosition = index === 0 ? [1, 1, newRoom.size.height / 2] : [newRoom.size.width - 1, 1, newRoom.size.height / 2];
-          rigidBody.setTranslation({ x: newPosition[0], y: newPosition[1], z: newPosition[2] });
+          rigidBody!.setTranslation({ x: newPosition[0], y: newPosition[1], z: newPosition[2] });
         }
       }
     });

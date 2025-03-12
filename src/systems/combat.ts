@@ -104,11 +104,11 @@ export class CombatSystem {
   }
 
   private applyBuff(target: Player | Enemy, effect: AbilityEffect): void {
-    // Implementation for buff application
+    // TODO: Implementation for buff application
   }
 
   private applyDebuff(target: Player | Enemy, effect: AbilityEffect): void {
-    // Implementation for debuff application
+    // TODO: Implementation for debuff application
   }
 
   private getEffectColor(ability: Ability): string {
