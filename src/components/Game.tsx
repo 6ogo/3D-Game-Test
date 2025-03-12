@@ -11,6 +11,7 @@ import { ShaderManager } from '../systems/shaders';
 import { useGameSessionStore } from '../store/gameSessionStore';
 import { Player } from './Player';
 import { UI } from './UI';
+import { Level } from './Level';
 import { LevelManager } from '../systems/dynamicLevelLoad';
 
 // Game scene setup component
@@ -84,7 +85,7 @@ function GameScene() {
       <ambientLight intensity={0.1} />
       <Physics gravity={[0, -30, 0]}>
         <Player />
-        {/* Level is managed and rendered by LevelManager */}
+        <Level />
       </Physics>
     </>
   );
