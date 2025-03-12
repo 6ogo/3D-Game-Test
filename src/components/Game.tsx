@@ -1,6 +1,6 @@
 // Game.tsx - Main game component
 import { useEffect, useRef } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera, Sky, Stars } from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
 import * as THREE from 'three';
@@ -22,10 +22,10 @@ function GameScene() {
   
   // References to managers
   const levelManagerRef = useRef<LevelManager | null>(null);
-  const effectsManagerRef = useRef(null);
-  const projectileManagerRef = useRef(null);
-  const enemyPoolRef = useRef(null);
-  const shaderManagerRef = useRef(null);
+  const effectsManagerRef = useRef<VisualEffectsManager | null>(null);
+  const projectileManagerRef = useRef<ProjectileManager | null>(null);
+  const enemyPoolRef = useRef<EnemyPool | null>(null);
+  const shaderManagerRef = useRef<ShaderManager | null>(null);
   
   // Start game session
   const startSession = useGameSessionStore(state => state.startSession);
@@ -52,9 +52,11 @@ function GameScene() {
     // Load first level
     levelManagerRef.current.loadLevel('level-1').then(() => {
       // Set lighting based on entrance room
-      const entranceRoom = levelManagerRef.current.getActiveRoom();
-      if (entranceRoom) {
-        effectsManagerRef.current.setupEnvironmentLighting(entranceRoom.type);
+      if (levelManagerRef.current) {
+        const entranceRoom = levelManagerRef.current.getActiveRoom();
+        if (entranceRoom) {
+          effectsManagerRef.current?.setupEnvironmentLighting(entranceRoom.type);
+        }
       }
     });
     
