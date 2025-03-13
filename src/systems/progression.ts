@@ -707,7 +707,8 @@ export class ProgressionSystem {
       wisdom: 10 + player.level * 2,
       criticalChance: 0.05,
       criticalDamage: 1.5,
-      moveSpeed: 8
+      moveSpeed: 8,
+      dodgeChance: 0.05 + (player.level * 0.01) // Base dodge chance increases with level
     };
 
     // Add equipment bonuses

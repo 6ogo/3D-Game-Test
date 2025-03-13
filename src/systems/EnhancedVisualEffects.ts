@@ -6,12 +6,12 @@ import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 
 // Custom effect shaders
-import { GodRayShader } from './shaders/GodRayShader';
-import { ChromaticAberrationShader } from './shaders/ChromaticAberrationShader';
-import { VignetteShader } from './shaders/VignetteShader';
-import { PixelShader } from './shaders/PixelShader';
-import { ShakeShader } from './shaders/ShakeShader';
-import { FeedbackShader } from './shaders/FeedbackShader';
+import { GodRayShader } from './shaders/GodRayShader.js';
+import { ChromaticAberrationShader } from './shaders/ChromaticAberrationShader.js';
+import { VignetteShader } from './shaders/VignetteShader.js';
+import { PixelShader } from './shaders/PixelShader.js';
+import { ShakeShader } from './shaders/ShakeShader.js';
+import { FeedbackShader } from './shaders/FeedbackShader.js';
 
 // Default settings for visual effects
 const DEFAULT_SETTINGS = {
@@ -45,7 +45,8 @@ const DEFAULT_SETTINGS = {
   },
   feedback: {
     enabled: false,
-    intensity: 0.15
+    intensity: 0.15,
+    animated: false
   },
   pixel: {
     enabled: false,
@@ -58,27 +59,27 @@ const DEFAULT_SETTINGS = {
  */
 const ROOM_EFFECT_PRESETS: Record<string, Partial<typeof DEFAULT_SETTINGS>> = {
   normal: {
-    bloom: { strength: 0.8, radius: 0.6 },
-    chromatic: { intensity: 0.002 },
-    vignette: { darkness: 0.5 }
+    bloom: { enabled: true, strength: 0.8, radius: 0.6, threshold: 0.85 },
+    chromatic: { enabled: true, intensity: 0.002, animated: false },
+    vignette: { enabled: true, darkness: 0.5, offset: 0.9 }
   },
   elite: {
-    bloom: { strength: 1.2, radius: 0.8 },
-    chromatic: { intensity: 0.005, animated: true },
-    vignette: { darkness: 0.7 },
-    feedback: { enabled: true, intensity: 0.1 }
+    bloom: { enabled: true, strength: 1.2, radius: 0.8, threshold: 0.85 },
+    chromatic: { enabled: true, intensity: 0.005, animated: true },
+    vignette: { enabled: true, darkness: 0.7, offset: 0.9 },
+    feedback: { enabled: true, intensity: 0.1, animated: false }
   },
   treasure: {
-    bloom: { strength: 1.5, radius: 0.9 },
-    chromatic: { intensity: 0.002 },
-    vignette: { darkness: 0.4 },
-    godray: { enabled: true }
+    bloom: { enabled: true, strength: 1.5, radius: 0.9, threshold: 0.85 },
+    chromatic: { enabled: true, intensity: 0.002, animated: false },
+    vignette: { enabled: true, darkness: 0.4, offset: 0.9 },
+    godray: { enabled: true, exposure: 0.3, decay: 0.95, density: 0.8, weight: 0.6 }
   },
   boss: {
-    bloom: { strength: 1.3, radius: 0.8 },
-    chromatic: { intensity: 0.007, animated: true },
-    vignette: { darkness: 0.8 },
-    feedback: { enabled: true, intensity: 0.17 }
+    bloom: { enabled: true, strength: 1.3, radius: 0.8, threshold: 0.85 },
+    chromatic: { enabled: true, intensity: 0.007, animated: true },
+    vignette: { enabled: true, darkness: 0.8, offset: 0.9 },
+    feedback: { enabled: true, intensity: 0.17, animated: false }
   }
 };
 
@@ -91,7 +92,7 @@ export interface VisualEffect {
   position: THREE.Vector3;
   velocity?: THREE.Vector3;
   acceleration?: THREE.Vector3;
-  color: THREE.Color | string;
+  color: THREE.Color | string | number;
   size: number;
   duration: number;
   startTime: number;
@@ -133,7 +134,7 @@ export interface ScreenEffectOptions {
   intensity?: number;
   fadeIn?: number;
   fadeOut?: number;
-  color?: THREE.Color | string;
+  color?: THREE.Color | string | number;
 }
 
 /**
@@ -189,7 +190,7 @@ export class EnhancedVisualEffects {
   private effectGeometries: Map<string, THREE.BufferGeometry> = new Map();
   
   // Debug mode
-  private debug: boolean = false;
+  private readonly debug: boolean = false;
 
   /**
    * Create the visual effects system
@@ -489,13 +490,13 @@ export class EnhancedVisualEffects {
     });
     
     // Add a subtle glow
-    this.createImpactFlash(position, config.size! * 3, config.duration! * 0.3, 0x00ff88);
+    this.createImpactFlash(position, config.size! * 3, config.duration! * 0.3, new THREE.Color(0x00ff88));
   }
 
   /**
    * Create dash effects along a path
    */
-  createDashEffect(position: THREE.Vector3, direction: THREE.Vector3, length: number = 3, color: THREE.Color | string = 0x4488ff): void {
+  createDashEffect(position: THREE.Vector3, direction: THREE.Vector3, length: number = 3, color: THREE.Color | string = new THREE.Color(0x4488ff)): void {
     // Create a trail effect
     this.trailManager.createTrail({
       startPosition: position,
@@ -533,7 +534,7 @@ export class EnhancedVisualEffects {
   /**
    * Create attack trail effect
    */
-  createAttackTrail(startPoint: THREE.Vector3, endPoint: THREE.Vector3, color: THREE.Color | string = 0xffffff, width: number = 1.0): void {
+  createAttackTrail(startPoint: THREE.Vector3, endPoint: THREE.Vector3, color: THREE.Color | string = new THREE.Color(0xffffff), width: number = 1.0): void {
     // Calculate direction and length
     const direction = new THREE.Vector3().subVectors(endPoint, startPoint).normalize();
     const length = startPoint.distanceTo(endPoint);
@@ -569,7 +570,7 @@ export class EnhancedVisualEffects {
   /**
    * Create slash arc effect
    */
-  createSlashArc(position: THREE.Vector3, direction: THREE.Vector3, angle: number, radius: number, color: THREE.Color | string = 0xffffff): void {
+  createSlashArc(position: THREE.Vector3, direction: THREE.Vector3, angle: number, radius: number, color: THREE.Color | string = new THREE.Color(0xffffff)): void {
     const arcSegments = 12;
     const angleRad = (angle * Math.PI) / 180;
     const colorObj = color instanceof THREE.Color ? color : new THREE.Color(color);
@@ -629,7 +630,7 @@ export class EnhancedVisualEffects {
   /**
    * Create impact flash at position
    */
-  createImpactFlash(position: THREE.Vector3, size: number = 1, duration: number = 300, color: THREE.Color | string = 0xffffff): void {
+  createImpactFlash(position: THREE.Vector3, size: number = 1, duration: number = 300, color: THREE.Color | string = new THREE.Color(0xffffff)): void {
     const colorObj = color instanceof THREE.Color ? color : new THREE.Color(color);
     
     // Create a flash sprite
@@ -673,7 +674,7 @@ export class EnhancedVisualEffects {
   /**
    * Create buff aura effect around object
    */
-  createBuffAura(object: THREE.Object3D, color: THREE.Color | string = 0x00ffff, duration: number = -1): void {
+  createBuffAura(object: THREE.Object3D, color: THREE.Color | string = new THREE.Color(0x00ffff), duration: number = -1): void {
     const colorObj = color instanceof THREE.Color ? color : new THREE.Color(color);
     
     // Create aura particles that orbit the object
@@ -726,7 +727,7 @@ export class EnhancedVisualEffects {
    */
   createExplosionEffect(position: THREE.Vector3, size: number = 3, particleCount: number = 50): void {
     // Create a central flash
-    this.createImpactFlash(position, size, 500, 0xff8800);
+    this.createImpactFlash(position, size, 500, new THREE.Color(0xff8800));
     
     // Create particles in a burst pattern
     this.particleManager.createParticleBurst({
@@ -760,13 +761,13 @@ export class EnhancedVisualEffects {
     
     // Add screen effects
     this.addScreenShake(0.1, 0.8);
-    this.flashScreen(0xff8800, 0.3, 0.5);
+    this.flashScreen(new THREE.Color(0xff8800), 0.3, 0.5);
   }
 
   /**
    * Create impact effect at position
    */
-  createImpactEffect(position: THREE.Vector3, color: THREE.Color | string = 0xffffff, size: number = 1): void {
+  createImpactEffect(position: THREE.Vector3, color: THREE.Color | string = new THREE.Color(0xffffff), size: number = 1): void {
     // Combine flash, particles, and screen effects
     this.createImpactFlash(position, size, 300, color);
     
@@ -805,7 +806,7 @@ export class EnhancedVisualEffects {
   /**
    * Flash the screen with a color
    */
-  flashScreen(color: THREE.Color | string = 0xffffff, intensity: number = 0.5, duration: number = 0.3): void {
+  flashScreen(color: THREE.Color | string = new THREE.Color(0xffffff), intensity: number = 0.5, duration: number = 0.3): void {
     if (!this.flashMesh || !this.flashMaterial) return;
     
     // Set color
@@ -885,18 +886,18 @@ export class EnhancedVisualEffects {
   /**
    * Update all visual effects
    */
-  update(deltaTime: number): void {
+  update(dt: number): void {
     const time = this.clock.getElapsedTime();
     
     // Update each effect
-    this.updateActiveEffects(time);
+    this.updateActiveEffects(time, dt);
     
     // Update screen effects
-    this.updateScreenEffects(deltaTime, time);
+    this.updateScreenEffects(dt, time);
     
     // Update managers
-    this.particleManager.update(deltaTime);
-    this.trailManager.update(deltaTime);
+    this.particleManager.update(dt);
+    this.trailManager.update(dt);
     
     // Render with composer
     this.composer.render();
@@ -905,7 +906,7 @@ export class EnhancedVisualEffects {
   /**
    * Update active effects
    */
-  private updateActiveEffects(time: number): void {
+  private updateActiveEffects(time: number, dt: number): void {
     // Process each effect
     for (const [id, effect] of this.activeEffects.entries()) {
       const age = (time - effect.startTime) * 1000; // convert to ms
@@ -962,11 +963,11 @@ export class EnhancedVisualEffects {
         
         // Apply movement
         if (effect.velocity) {
-          effect.mesh.position.add(effect.velocity.clone().multiplyScalar(deltaTime));
+          effect.mesh.position.add(effect.velocity.clone().multiplyScalar(dt));
           
           // Apply gravity
           if (effect.acceleration) {
-            effect.velocity.add(effect.acceleration.clone().multiplyScalar(deltaTime));
+            effect.velocity.add(effect.acceleration.clone().multiplyScalar(dt));
           }
           
           // Apply ground collision
@@ -983,8 +984,8 @@ export class EnhancedVisualEffects {
         
         // Apply rotation
         if (effect.options?.rotation) {
-          effect.mesh.rotation.x += deltaTime * 2;
-          effect.mesh.rotation.y += deltaTime * 3;
+          effect.mesh.rotation.x += dt * 2;
+          effect.mesh.rotation.y += dt * 3;
         }
       }
     }

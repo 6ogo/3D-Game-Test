@@ -3,7 +3,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
-import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
+
 import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js";
 import { ParticleSystem } from "./objectPooling";
 
@@ -694,7 +694,7 @@ export class VisualEffectsManager {
     }
 
     // Update environment lights
-    this.updateEnvironmentLights(deltaTime);
+    this.updateEnvironmentLights();
 
     // Update particle system
     this.particleSystem.update();
@@ -706,7 +706,7 @@ export class VisualEffectsManager {
   /**
    * Update environment lights (flickering, etc.)
    */
-  private updateEnvironmentLights(deltaTime: number): void {
+  private updateEnvironmentLights(): void {
     // Example: subtle flickering for point lights
     this.environmentLighting.pointLights.forEach((light, index) => {
       // Different phase for each light

@@ -81,7 +81,7 @@ export class CombatSystem {
             
             // Record hit result
             hitResults.push({
-              enemyId: target.id,
+              enemyId: 'isEnemy' in target ? target.id || 'unknown' : 'player',
               damage: finalDamage,
               isCritical,
               isKilled,
@@ -154,7 +154,7 @@ export class CombatSystem {
       const particleSystem = ParticleSystem.getInstance();
       if (particleSystem) {
         particleSystem.emitParticles(
-          'ability',
+          'fire',
           this.projectiles.get(projectileId)!.position,
           10,
           300,
@@ -304,10 +304,20 @@ export class CombatSystem {
    * Apply buff effect to a target
    */
   private applyBuff(target: Player | Enemy, effect: AbilityEffect): void {
-    // In a full implementation, this would add a buff to the target's activeBuffs array
-    // and apply the stat changes
+    // Apply the buff effect to the target
+    if ('activeBuffs' in target) {
+      target.activeBuffs.push({
+        id: `buff_${Date.now()}`,
+        name: effect.type,
+        duration: effect.duration || 5000,
+        stats: {
+          [effect.type]: effect.value
+        },
+        particleEffect: effect.particleEffect
+      });
+    }
     
-    // For now, just create a visual effect
+    // Create visual effect
     const position = new THREE.Vector3(target.position.x, target.position.y, target.position.z);
     const particleSystem = ParticleSystem.getInstance();
     
@@ -316,7 +326,7 @@ export class CombatSystem {
         'buff',
         position,
         30,
-        1000,
+        effect.duration || 1000,
         0.3,
         0.2,
         new THREE.Color(0x00aaff)

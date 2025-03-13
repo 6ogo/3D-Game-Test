@@ -1,9 +1,10 @@
-import { createNoise2D, createNoise3D } from 'simplex-noise';
-import * as THREE from 'three';
+import { createNoise2D } from 'simplex-noise';
+import { Ability } from '../types/game';
+// Removed unused THREE import
 import { Level, Room, Enemy, Treasure, Equipment, Vector3 } from '../types/game';
 
 // Room themes
-export type RoomTheme = 'castle' | 'temple' | 'cavern' | 'garden' | 'forge' | 'crypt';
+export type RoomTheme = 'castle' | 'dungeon' | 'forest' | 'void';
 
 // Room templates
 export type RoomTemplate = 
@@ -35,9 +36,10 @@ export interface LevelGenerationOptions {
 export class EnhancedLevelGenerator {
   // Noise generators for procedural generation
   private noise2D: ReturnType<typeof createNoise2D>;
-  private noise3D: ReturnType<typeof createNoise3D>;
+  // private noise3D: ReturnType<typeof createNoise3D>; // Removed unused noise3D
   private seed: string;
-  private random: () => number;
+  // Initialize with a default function that gets properly set in setupRNG
+  private random: () => number = () => Math.random();
   
   // Generation options
   private options: LevelGenerationOptions;
@@ -72,9 +74,8 @@ export class EnhancedLevelGenerator {
     this.seed = this.options.seed;
     this.setupRNG(this.seed);
     
-    // Initialize noise generators
+    // Initialize noise generator
     this.noise2D = createNoise2D(() => this.random());
-    this.noise3D = createNoise3D(() => this.random());
   }
   
   /**
@@ -143,12 +144,17 @@ export class EnhancedLevelGenerator {
     const mainPathLength = Math.min(this.options.mainPath, this.options.roomCount);
     
     // Calculate room distribution
+    // Calculate rooms for different types
+    // Calculate normal room distribution
     const normalRoomCount = this.options.roomCount 
       - 1 // Entrance
       - 1 // Boss
       - Math.floor(this.options.roomCount * this.options.specialRoomChance.elite)
       - Math.floor(this.options.roomCount * this.options.specialRoomChance.treasure)
       - Math.floor(this.options.roomCount * this.options.specialRoomChance.shop);
+    
+    // Calculate rooms per branch for balanced distribution
+    const roomsPerBranch = Math.ceil(normalRoomCount / Math.max(1, this.options.mainPath - 1));
     
     // Generate entrance room
     const entranceRoom = this.generateRoom('normal', 'standard');
@@ -157,6 +163,8 @@ export class EnhancedLevelGenerator {
     
     // Generate main path rooms (leading to boss)
     for (let i = 1; i < mainPathLength - 1; i++) {
+      // Distribute rooms based on calculated rooms per branch
+      const branchRooms = i < mainPathLength - 2 ? roomsPerBranch : normalRoomCount - (i - 1) * roomsPerBranch;
       let roomType: Room['type'] = 'normal';
       let template: RoomTemplate = 'standard';
       
@@ -167,11 +175,14 @@ export class EnhancedLevelGenerator {
         roomType = forcedRoom.type;
         template = forcedRoom.template;
       } else {
-        // Determine room type based on position and randomness
+        // Determine room type based on position and remaining rooms
         const normalizedPosition = i / (mainPathLength - 1); // 0 to 1
         
+        // Adjust probabilities based on remaining rooms in branch
+        const remainingRoomMultiplier = branchRooms > 0 ? 1 / branchRooms : 1;
+        
         // More challenging rooms later in the path
-        const eliteChance = this.options.specialRoomChance.elite 
+        const eliteChance = this.options.specialRoomChance.elite * remainingRoomMultiplier 
           * (0.5 + normalizedPosition * 1.5) // More elites later
           * (1 + this.options.difficulty * 0.2); // More elites at higher difficulty
           
@@ -546,27 +557,30 @@ export class EnhancedLevelGenerator {
       
       // Add some side chambers
       const chambers = 1 + Math.floor(this.random() * 3); // 1-3 chambers
-      const chamberHeight = Math.floor(height / (chambers + 1));
+      const baseHeight = Math.floor(height / (chambers + 1));
       
       for (let i = 1; i <= chambers; i++) {
-        const chamberY = i * chamberHeight;
+        // Initialize chamber dimensions first
+        const chamberDims = {
+          width: 4 + Math.floor(this.random() * 4),
+          height: 3 + Math.floor(this.random() * 3)
+        };
+        const chamberY = i * baseHeight;
         const chamberSide = this.random() < 0.5 ? 'left' : 'right';
-        const chamberWidth = 4 + Math.floor(this.random() * 4);
-        const chamberHeight = 3 + Math.floor(this.random() * 3);
         
         if (chamberSide === 'left') {
           // Left side chamber
-          for (let y = Math.max(1, chamberY - Math.floor(chamberHeight / 2)); 
-               y < Math.min(height - 1, chamberY + Math.floor(chamberHeight / 2)); y++) {
-            for (let x = Math.max(1, corridorStart - chamberWidth); x < corridorStart; x++) {
+          for (let y = Math.max(1, chamberY - Math.floor(chamberDims.height / 2)); 
+               y < Math.min(height - 1, chamberY + Math.floor(chamberDims.height / 2)); y++) {
+            for (let x = Math.max(1, corridorStart - chamberDims.width); x < corridorStart; x++) {
               layout[y][x] = 1; // Floor
             }
           }
         } else {
           // Right side chamber
-          for (let y = Math.max(1, chamberY - Math.floor(chamberHeight / 2)); 
-               y < Math.min(height - 1, chamberY + Math.floor(chamberHeight / 2)); y++) {
-            for (let x = corridorEnd; x < Math.min(width - 1, corridorEnd + chamberWidth); x++) {
+          for (let y = Math.max(1, chamberY - Math.floor(chamberDims.height / 2)); 
+               y < Math.min(height - 1, chamberY + Math.floor(chamberDims.height / 2)); y++) {
+            for (let x = corridorEnd; x < Math.min(width - 1, corridorEnd + chamberDims.width); x++) {
               layout[y][x] = 1; // Floor
             }
           }
@@ -589,27 +603,31 @@ export class EnhancedLevelGenerator {
       
       // Add some side chambers
       const chambers = 1 + Math.floor(this.random() * 3); // 1-3 chambers
-      const chamberWidth = Math.floor(width / (chambers + 1));
+      // Calculate spacing between chambers for even distribution
+      const chamberSpacing = Math.floor(width / (chambers + 1));
       
       for (let i = 1; i <= chambers; i++) {
-        const chamberX = i * chamberWidth;
+        // Initialize chamber dimensions and position
+        const chamberDims = {
+          width: 3 + Math.floor(this.random() * 3),
+          height: 4 + Math.floor(this.random() * 4)
+        };
+        const chamberPos = i * chamberSpacing;
         const chamberSide = this.random() < 0.5 ? 'top' : 'bottom';
-        const chamberWidth = 3 + Math.floor(this.random() * 3);
-        const chamberHeight = 4 + Math.floor(this.random() * 4);
         
         if (chamberSide === 'top') {
           // Top side chamber
-          for (let y = Math.max(1, corridorStart - chamberHeight); y < corridorStart; y++) {
-            for (let x = Math.max(1, chamberX - Math.floor(chamberWidth / 2)); 
-                 x < Math.min(width - 1, chamberX + Math.floor(chamberWidth / 2)); x++) {
+          for (let y = Math.max(1, corridorStart - chamberDims.height); y < corridorStart; y++) {
+            for (let x = Math.max(1, chamberPos - Math.floor(chamberDims.width / 2)); 
+                 x < Math.min(width - 1, chamberPos + Math.floor(chamberDims.width / 2)); x++) {
               layout[y][x] = 1; // Floor
             }
           }
         } else {
           // Bottom side chamber
-          for (let y = corridorEnd; y < Math.min(height - 1, corridorEnd + chamberHeight); y++) {
-            for (let x = Math.max(1, chamberX - Math.floor(chamberWidth / 2)); 
-                 x < Math.min(width - 1, chamberX + Math.floor(chamberWidth / 2)); x++) {
+          for (let y = corridorEnd; y < Math.min(height - 1, corridorEnd + chamberDims.height); y++) {
+            for (let x = Math.max(1, chamberPos - Math.floor(chamberDims.width / 2)); 
+                 x < Math.min(width - 1, chamberPos + Math.floor(chamberDims.width / 2)); x++) {
               layout[y][x] = 1; // Floor
             }
           }
@@ -1723,7 +1741,8 @@ export class EnhancedLevelGenerator {
         // Create enemy object
         const enemy: Enemy = {
           id: `enemy-${Date.now()}-${Math.random()}`,
-          type,
+          // Ensure type is one of the valid types from the Enemy interface
+          type: type as 'Normal' | 'Elite' | 'Boss',
           health,
           maxHealth: health,
           position,
@@ -1998,7 +2017,7 @@ export class EnhancedLevelGenerator {
    */
   private generateBoss(bossRoom: Room): Enemy {
     // Boss parameters
-    const bossName = this.generateBossName();
+    this.generateBossName(); // Generate name for logging/future use // Marked as unused with underscore
     const bossType = 'Boss';
     const position = {
       x: Math.floor(bossRoom.size.width / 2),

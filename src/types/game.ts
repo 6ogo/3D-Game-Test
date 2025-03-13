@@ -7,6 +7,7 @@ export interface Vector3 {
 }
 
 export interface Player {
+  id?: string;
   characterClass: ReactNode;
   health: number;
   maxHealth: number;
@@ -34,6 +35,7 @@ export interface PlayerStats {
   wisdom: number;
   criticalChance: number;
   criticalDamage: number;
+  dodgeChance: number;
 }
 
 export interface Ability {
@@ -55,6 +57,8 @@ export interface AbilityEffect {
   value: number;
   duration?: number;
   radius?: number;
+  particleEffect?: string;
+  knockback?: number;
 }
 
 export interface Equipment {
@@ -128,6 +132,7 @@ export interface Room {
   enemies: Enemy[];
   treasures: Treasure[];
   connections: string[];
+  isEntrance?: boolean;
 }
 
 export interface Treasure {
