@@ -5,11 +5,12 @@ import { useMetaProgressionStore } from '../store/metaProgressionStore';
 import { useGameStore } from '../store/gameStore';
 import { useGameFlowStore } from '../store/gameFlowStore';
 import { formatTime, formatNumber } from '../utils/formatters';
-import { Shield, Zap, Footprints, Target, Ghost } from 'lucide-react';
+import { Shield, Zap, Footprints, Target, Ghost, ArrowUpCircle } from 'lucide-react';
 
 // Main home scene component
 export function HomeScene() {
   const [startingGame, setStartingGame] = useState(false);
+  const [showUpgrades, setShowUpgrades] = useState(false);
   const resetGame = useGameStore(state => state.resetGame);
   const souls = useMetaProgressionStore(state => state.souls);
   const totalRuns = useMetaProgressionStore(state => state.totalRuns);
@@ -89,9 +90,20 @@ export function HomeScene() {
         <header className="bg-black/70 p-4 text-white">
           <h1 className="text-3xl font-bold text-center mb-2">Ethereal Ascent</h1>
           <div className="flex justify-between items-center">
-            <div className="flex items-center">
-              <Zap className="text-yellow-500 mr-2" />
-              <span className="text-xl font-semibold">{formatNumber(souls)} Souls</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center">
+                <Zap className="text-yellow-500 mr-2" />
+                <span className="text-xl font-semibold">{formatNumber(souls)} Souls</span>
+              </div>
+              
+              {/* Clickable Boon Upgrade Button */}
+              <button 
+                onClick={() => setShowUpgrades(!showUpgrades)}
+                className="flex items-center gap-1 px-3 py-1 bg-purple-700 hover:bg-purple-600 rounded-lg transition-colors"
+              >
+                <ArrowUpCircle className="w-4 h-4" />
+                <span>Boon Upgrades</span>
+              </button>
             </div>
             <div className="flex space-x-4">
               <div className="text-sm">
@@ -113,28 +125,47 @@ export function HomeScene() {
         </header>
         
         {/* Main Content */}
-        <div className="flex-1 flex flex-row p-4 overflow-hidden">
-          {/* Upgrades Panel */}
-          <div className="w-2/3 pr-4">
-            <UpgradesPanel />
+        <div className="flex-1 flex flex-col p-4 overflow-hidden">
+          {/* Boon Upgrades Panel - Conditionally shown */}
+          {showUpgrades && (
+            <div className="mb-4 max-h-[70vh] overflow-y-auto">
+              <UpgradesPanel />
+            </div>
+          )}
+          
+          {/* Main game content */}
+          <div className="flex-1 flex justify-center items-center">
+            {!showUpgrades && (
+              <div className="text-center max-w-2xl mx-auto bg-black/40 p-6 rounded-lg">
+                <h2 className="text-2xl font-bold text-white mb-4">Welcome, Ascender</h2>
+                <p className="text-gray-300 mb-6">Prepare yourself for the challenges ahead. Upgrade your abilities with souls and begin your journey.</p>
+                
+                <div className="flex justify-center space-x-4 mb-6">
+                  <button 
+                    onClick={() => setShowUpgrades(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-white transition-colors"
+                  >
+                    <ArrowUpCircle className="w-5 h-5" />
+                    <span>View Boon Upgrades</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           
-          {/* Stats and Actions Panel */}
-          <div className="w-1/3 flex flex-col">
-            <RunStatsPanel />
-            <div className="mt-auto">
-              <button
-                onClick={handleStartGame}
-                disabled={startingGame}
-                className={`w-full py-4 px-8 rounded-lg text-xl font-bold text-white transition-all ${
-                  startingGame 
-                  ? 'bg-gray-600 cursor-not-allowed' 
-                  : 'bg-purple-700 hover:bg-purple-600 shadow-lg hover:shadow-purple-500/30'
-                }`}
-              >
-                {startingGame ? 'Ascending...' : 'Begin Ascent'}
-              </button>
-            </div>
+          {/* Start Game Button - Always visible at bottom */}
+          <div className="mt-auto mx-auto w-full max-w-md">
+            <button
+              onClick={handleStartGame}
+              disabled={startingGame}
+              className={`w-full py-4 px-8 rounded-lg text-xl font-bold text-white transition-all ${
+                startingGame 
+                ? 'bg-gray-600 cursor-not-allowed' 
+                : 'bg-purple-700 hover:bg-purple-600 shadow-lg hover:shadow-purple-500/30'
+              }`}
+            >
+              {startingGame ? 'Ascending...' : 'Begin Ascent'}
+            </button>
           </div>
         </div>
       </div>
