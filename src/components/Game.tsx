@@ -1,7 +1,7 @@
 // Game.tsx - Main game component
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { PerspectiveCamera, Sky, Stars } from '@react-three/drei';
+import { PerspectiveCamera, Sky, Stars, Html } from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
 
 // Import custom systems
@@ -17,6 +17,7 @@ import { LevelManager } from '../systems/dynamicLevelLoad';
 // Game scene setup component
 function GameScene() {
   const { scene, gl, camera } = useThree();
+  const [isLevelLoaded, setIsLevelLoaded] = useState(false);
   
   // References to managers
   const levelManagerRef = useRef<LevelManager | null>(null);
@@ -54,6 +55,12 @@ function GameScene() {
         const entranceRoom = levelManagerRef.current.getActiveRoom();
         if (entranceRoom) {
           effectsManagerRef.current?.setupEnvironmentLighting(entranceRoom.type);
+          
+          // Mark level as loaded - this will enable physics and player controls
+          setTimeout(() => {
+            setIsLevelLoaded(true);
+            console.log("Level loaded and ready - enabling player physics");
+          }, 500); // Small delay to ensure everything is rendered
         }
       }
     });
@@ -80,11 +87,46 @@ function GameScene() {
     ParticleSystem.getInstance().update();
   });
   
+  // Loading indicator
+  const LoadingScreen = () => (
+    <Html fullscreen>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: '100%',
+        height: '100%',
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        color: 'white',
+      }}>
+        <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>Loading Level...</div>
+        <div style={{ width: '200px', height: '10px', backgroundColor: '#333' }}>
+          <div style={{ 
+            width: isLevelLoaded ? '100%' : '90%', 
+            height: '100%', 
+            backgroundColor: isLevelLoaded ? '#4CAF50' : '#9C27B0',
+            transition: 'width 0.5s ease-in-out'
+          }} />
+        </div>
+      </div>
+    </Html>
+  );
+
   return (
     <>
       <ambientLight intensity={0.1} />
-      <Physics gravity={[0, -30, 0]}>
-        <Player />
+      {!isLevelLoaded && <LoadingScreen />}
+      
+      {/* Add a safe floor to prevent falling into the void */}
+      <mesh position={[0, -10, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[1000, 1000]} />
+        <meshStandardMaterial color="#111" />
+      </mesh>
+      
+      {/* Only enable physics when level is loaded */}
+      <Physics gravity={[0, isLevelLoaded ? -30 : 0, 0]}>
+        {isLevelLoaded && <Player />}
         <Level />
       </Physics>
     </>
