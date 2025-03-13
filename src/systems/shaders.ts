@@ -615,9 +615,17 @@ export class ShaderManager {
   }
   
   // Update time-based uniforms in materials
-  updateTimeBasedUniforms(time: any) {
-    // Find and update materials in the scene
-    // This would typically iterate through scene objects in a full implementation
+  updateTimeBasedUniforms(time: number) {
+    // Update time-based uniforms for all shader materials
+    this.animatedObjects.forEach((updateFunc, object) => {
+      // Call the update function to handle animation
+      const animationComplete = updateFunc(time);
+      
+      // Remove completed animations
+      if (animationComplete) {
+        this.animatedObjects.delete(object);
+      }
+    });
   }
 }
 

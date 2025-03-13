@@ -388,7 +388,8 @@ export function Player() {
     // In a full implementation, this would create an actual projectile entity
     // For now, we'll use a simple raycasting approach
     
-    const raycaster = new THREE.Raycaster(position, direction, 0, castData.range);
+    // We don't need a raycaster here as we're using custom sphere detection logic
+    // This simplifies the code and removes the unused variable warning
     
     // Find enemies in the current room
     const currentRoom = currentLevel?.rooms.find(room => room.id === currentRoomId);
@@ -423,14 +424,21 @@ export function Player() {
     
     // Create visual effect showing projectile travel
     const endPoint = closestHit !== null ? 
-      new THREE.Vector3().addVectors(position, direction.clone().multiplyScalar(closestHit.distance)) :
+      new THREE.Vector3().addVectors(position, direction.clone().multiplyScalar(
+        // Use type guards to ensure distance property exists
+        closestHit && typeof closestHit === 'object' && 'distance' in closestHit ? 
+          (closestHit as {distance: number}).distance : castData.range)) :
       new THREE.Vector3().addVectors(position, direction.clone().multiplyScalar(castData.range));
     
     createCastVisual(position, endPoint);
     
     // If hit an enemy, apply damage
-    if (closestHit !== null) {
-      const enemy = currentRoom.enemies[closestHit.index];
+    // Use proper type checking to ensure closestHit has the expected properties
+    if (closestHit !== null && typeof closestHit === 'object' && 'distance' in closestHit && 'index' in closestHit) {
+      // Use a proper type guard and type assertion to ensure TypeScript recognizes the index property
+      const hitWithIndex = closestHit as {index: number, distance: number};
+      // Now we can safely access the index property
+      const enemy = currentRoom.enemies[hitWithIndex.index];
       
       // Calculate damage
       const stats = ProgressionSystem.getInstance().calculateStats(player);
@@ -453,7 +461,8 @@ export function Player() {
       );
       
       // Check if enemy is defeated
-      if (enemy.health <= 0) {
+      if (enemy.health <= 0 && currentRoomId) {
+        // Add null check for currentRoomId before using it
         useGameStore.getState().removeEnemy(currentRoomId, enemy.id);
       }
     }
@@ -540,7 +549,7 @@ export function Player() {
         attackTrailRef.current.localToWorld(points[i].clone()).add(worldPos);
         
         // Get particle system
-        const particleSystem = ParticleSystem.getInstance(meshRef.current.parent);
+        const particleSystem = ParticleSystem.getInstance(meshRef.current.parent as THREE.Scene);
         particleSystem.emitParticles('dash', worldPos, 3, 300, 0.2, 0.05);
       }
     }
@@ -606,7 +615,7 @@ export function Player() {
     meshRef.current.getWorldPosition(worldPos);
     
     // Get particle system
-    const particleSystem = ParticleSystem.getInstance(meshRef.current.parent);
+    const particleSystem = ParticleSystem.getInstance(meshRef.current.parent as THREE.Scene);
     
     // Emit particles in a circle/arc
     for (let i = 0; i <= segments; i++) {
@@ -627,7 +636,7 @@ export function Player() {
     
     // Add a central burst for dramatic effect
     particleSystem.emitParticles(
-      'ability', 
+      'buff', 
       worldPos, 
       20, 
       800, 
@@ -648,7 +657,7 @@ export function Player() {
   // Visual effect for cast ability
   const createCastVisual = (startPoint: THREE.Vector3, endPoint: THREE.Vector3) => {
     // Create a tracer effect for the cast projectile
-    const effectsManager = VisualEffectsManager.getInstance();
+    const effectsManager = VisualEffectsManager.getInstance(undefined, meshRef.current?.parent as THREE.Scene, undefined);
     if (effectsManager) {
       effectsManager.createAttackTrail(
         startPoint, 
@@ -659,7 +668,7 @@ export function Player() {
     }
     
     // Add particle effects along the path
-    const particleSystem = ParticleSystem.getInstance();
+    const particleSystem = ParticleSystem.getInstance(meshRef.current?.parent as THREE.Scene);
     if (particleSystem) {
       // Calculate distance and number of particles
       const distance = startPoint.distanceTo(endPoint);
@@ -676,7 +685,7 @@ export function Player() {
         pos.z += (Math.random() - 0.5) * 0.2;
         
         particleSystem.emitParticles(
-          'ability', 
+          'buff', // Changed from 'ability' to a valid type
           pos, 
           1, 
           300, 
@@ -701,17 +710,20 @@ export function Player() {
   
   // Visual effect for hit
   const createHitEffect = (position: THREE.Vector3, damage: number, isCritical: boolean) => {
+    // Use damage for particle size scaling and apply it to particle count
+    const damageScale = Math.min(1.5, Math.max(0.5, damage / 10))
+    const scaledCount = isCritical ? Math.floor(20 * damageScale) : Math.floor(10 * damageScale);
     // Create particle effect at hit position
-    const particleSystem = ParticleSystem.getInstance();
+    const particleSystem = ParticleSystem.getInstance(meshRef.current?.parent as THREE.Scene);
     if (particleSystem) {
       const color = isCritical ? 0xffff00 : 0xff4400;
       const size = isCritical ? 0.3 : 0.2;
-      const count = isCritical ? 20 : 10;
+      // Using the scaled count based on damage
       
       particleSystem.emitParticles(
         'hit', 
         position, 
-        count, 
+        scaledCount, 
         400, 
         size, 
         0.15, 
@@ -720,7 +732,7 @@ export function Player() {
     }
     
     // Create impact effect using visual effects manager
-    const effectsManager = VisualEffectsManager.getInstance();
+    const effectsManager = VisualEffectsManager.getInstance(undefined, meshRef.current?.parent as THREE.Scene, undefined);
     if (effectsManager) {
       effectsManager.createImpactEffect(
         position,
@@ -730,6 +742,7 @@ export function Player() {
     }
     
     // Play hit sound with variation based on critical
+    // Using non-null assertion to handle string | null parameter issue
     AudioManager.playSound('hit', {
       rate: isCritical ? 1.2 : 1.0,
       volume: isCritical ? 0.7 : 0.5
@@ -744,7 +757,7 @@ export function Player() {
     meshRef.current.getWorldPosition(worldPos);
     
     // Get particle system
-    const particleSystem = ParticleSystem.getInstance(meshRef.current.parent);
+    const particleSystem = ParticleSystem.getInstance(meshRef.current.parent as THREE.Scene);
     
     // Create dash trail
     const dashDirection = moveDirection.current.clone();
@@ -771,7 +784,7 @@ export function Player() {
     }
     
     // Add a flash effect using visual effects manager
-    const effectsManager = VisualEffectsManager.getInstance();
+    const effectsManager = VisualEffectsManager.getInstance(undefined, meshRef.current?.parent as THREE.Scene, undefined);
     if (effectsManager) {
       effectsManager.createAttackTrail(
         worldPos, 

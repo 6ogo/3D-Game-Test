@@ -57,6 +57,7 @@ const createInitialPlayer = (): Player => {
     criticalChance: 0.05 + critChanceBonus, // Apply crit chance bonus
     criticalDamage: 1.5,
     moveSpeed: 8 * moveSpeedMultiplier, // Apply move speed multiplier
+    dodgeChance: 0.05, // Base dodge chance
   },
   equipment: [],
   activeBuffs: [],

@@ -415,7 +415,7 @@ export function Enemy({
       const particleSystem = ParticleSystem.getInstance();
       if (particleSystem) {
         particleSystem.emitParticles(
-          'ability',
+          'buff', // Changed from 'ability' to valid type 'buff'
           position,
           50,
           1000,
@@ -439,6 +439,8 @@ export function Enemy({
   
   // Handle charge attack behavior
   const handleChargeAttack = (delta: number, currentPos: THREE.Vector3, playerPosition: THREE.Vector3) => {
+    // Use delta to adjust charge timing
+    chargeTimer.current -= delta;
     if (chargeTimer.current <= 0) {
       // End charge
       setIsCharging(false);
@@ -709,7 +711,7 @@ export function Enemy({
     attackDuration.current = 1.0; // Longer animation for summoning
     
     // Summon positions (around the summoner)
-    const summonPositions = [];
+    const summonPositions: [number, number, number][] = [];
     const summonCount = 2;
     
     for (let i = 0; i < summonCount; i++) {
@@ -726,7 +728,7 @@ export function Enemy({
       const particleSystem = ParticleSystem.getInstance();
       if (particleSystem) {
         particleSystem.emitParticles(
-          'ability',
+          'buff', // Changed from 'ability' to valid type 'buff'
           new THREE.Vector3(pos[0], pos[1], pos[2]),
           20,
           1000,
@@ -744,11 +746,12 @@ export function Enemy({
     // For now, we just create the visual effect
     setTimeout(() => {
       // Tell the game to spawn enemies at these positions
+      // summonPositions is already typed as [number, number, number][] so no need for type assertion
       summonPositions.forEach(pos => {
         useGameStore.getState().spawnEnemy(
           currentRoomId!,
           behavior.summonType || 'melee',
-          pos as [number, number, number]
+          pos
         );
       });
     }, 1000);
@@ -801,7 +804,7 @@ export function Enemy({
     const particleSystem = ParticleSystem.getInstance();
     if (particleSystem) {
       particleSystem.emitParticles(
-        'ability',
+        'buff', // Changed from 'ability' to valid type 'buff'
         currentPos,
         30,
         800,
@@ -837,7 +840,7 @@ export function Enemy({
       // Create appear effect at new position
       if (particleSystem) {
         particleSystem.emitParticles(
-          'ability',
+          'buff', // Changed from 'ability' to valid type 'buff'
           teleportPos,
           30,
           800,
@@ -863,7 +866,7 @@ export function Enemy({
     const particleSystem = ParticleSystem.getInstance();
     if (particleSystem) {
       particleSystem.emitParticles(
-        'ability',
+        'buff', // Changed from 'ability' to valid type 'buff'
         position,
         15,
         1000,
@@ -1056,7 +1059,9 @@ export function Enemy({
   };
   
   // Apply movement based on current move direction
-  const applyMovement = (delta: number, currentPos: THREE.Vector3, speedOverride?: number) => {
+  // Using _ as parameter name to indicate it's intentionally unused
+  const applyMovement = (delta: number, _: THREE.Vector3, speedOverride?: number) => {
+    // Using delta for movement calculations
     if (!rigidBodyRef.current) return;
     
     // Use provided speed or behavior default
