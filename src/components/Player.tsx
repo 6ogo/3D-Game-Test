@@ -396,6 +396,11 @@ export function Player() {
           x: worldPosition.x, 
           y: worldPosition.y, 
           z: worldPosition.z 
+        },
+        velocity: {
+          x: currentVelocity.current.x,
+          y: linvel.y,
+          z: currentVelocity.current.z
         }
       }
     });

@@ -12,6 +12,7 @@ export interface Player {
   health: number;
   maxHealth: number;
   position: Vector3;
+  velocity?: Vector3;
   abilities: Ability[];
   experience: number;
   level: number;
