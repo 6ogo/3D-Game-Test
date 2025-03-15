@@ -473,8 +473,8 @@ export class EnhancedLevelGenerator {
     const centerY = Math.floor(height / 2);
     const centralRadius = Math.min(width, height) * 0.25;
 
-    for (let y = Math.max(1, centerY - centralRadius); y <= Math.min(height - 2, centerY + centralRadius); y++) {
-      for (let x = Math.max(1, centerX - centralRadius); x <= Math.min(width - 2, centerX + centralRadius); x++) {
+    for (let y = Math.max(1, Math.floor(centerY - centralRadius)); y <= Math.min(height - 2, Math.floor(centerY + centralRadius)); y++) {
+      for (let x = Math.max(1, Math.floor(centerX - centralRadius)); x <= Math.min(width - 2, Math.floor(centerX + centralRadius)); x++) {
         layout[y][x] = 1; // Floor
       }
     }
@@ -489,47 +489,35 @@ export class EnhancedLevelGenerator {
   private generateCircularRoom(layout: number[][], width: number, height: number): void {
     const centerX = Math.floor(width / 2);
     const centerY = Math.floor(height / 2);
-    const maxRadius = Math.min(centerX, centerY) - 1;
-    const innerRadius = maxRadius * 0.3; // Optional inner wall for donut shape
-    const createDonut = this.random() < 0.4; // 40% chance of donut shape
+    const maxRadius = Math.min(Math.floor(width * 0.4), Math.floor(height * 0.4));
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        // Distance from center
         const dx = x - centerX;
         const dy = y - centerY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+        const distSquared = dx * dx + dy * dy;
 
-        // Outer circle
-        if (distance < maxRadius) {
-          // Optional inner wall for donut shape
-          if (createDonut && distance < innerRadius) {
-            layout[y][x] = 0; // Wall
-          } else {
-            layout[y][x] = 1; // Floor
-          }
+        if (distSquared <= maxRadius * maxRadius) {
+          layout[y][x] = 1; // Floor
         } else {
           layout[y][x] = 0; // Wall
         }
       }
     }
 
-    // If it's a donut, add some passages through the inner wall
-    if (createDonut) {
-      const passages = 2 + Math.floor(this.random() * 3); // 2-4 passages
+    // Add pedestals for treasures
+    const pedestalCount = 1 + Math.floor(this.random() * 3); // 1-3 pedestals
 
-      for (let i = 0; i < passages; i++) {
-        const angle = (i / passages) * Math.PI * 2;
-        const px = Math.floor(centerX + Math.cos(angle) * innerRadius);
-        const py = Math.floor(centerY + Math.sin(angle) * innerRadius);
+    for (let i = 0; i < pedestalCount; i++) {
+      const angle = (i / pedestalCount) * Math.PI * 2;
+      const distance = maxRadius * 0.5; // Pedestals positioned closer to center
 
-        // Create a small passage
-        for (let y = Math.max(1, py - 1); y <= Math.min(height - 2, py + 1); y++) {
-          for (let x = Math.max(1, px - 1); x <= Math.min(width - 2, px + 1); x++) {
-            layout[y][x] = 1; // Floor
-          }
-        }
-      }
+      const pedestalX = centerX + Math.floor(Math.cos(angle) * distance);
+      const pedestalY = centerY + Math.floor(Math.sin(angle) * distance);
+
+      // Mark pedestal location (3 = pedestal)
+      // In a full implementation, this would be interpreted by the renderer
+      layout[pedestalY][pedestalX] = 3;
     }
 
     // Ensure door areas are clear
@@ -716,6 +704,7 @@ export class EnhancedLevelGenerator {
     return level;
   }
 
+
   /**
    * Generate a cross-shaped room
    */
@@ -770,133 +759,81 @@ export class EnhancedLevelGenerator {
       }
     }
 
-    // Parameters for chambers
-    const chamberCount = 3 + Math.floor(this.random() * 3); // 3-5 chambers
-    const chambers: { x: number, y: number, width: number, height: number }[] = [];
-
     // Create central chamber first
     const centerX = Math.floor(width / 2);
     const centerY = Math.floor(height / 2);
-    const centerWidth = Math.floor(width * 0.3);
-    const centerHeight = Math.floor(height * 0.3);
+    const hubRadius = Math.min(Math.floor(width * 0.2), Math.floor(height * 0.2));
 
-    chambers.push({
-      x: centerX - Math.floor(centerWidth / 2),
-      y: centerY - Math.floor(centerHeight / 2),
-      width: centerWidth,
-      height: centerHeight
-    });
+    for (let y = centerY - hubRadius; y <= centerY + hubRadius; y++) {
+      for (let x = centerX - hubRadius; x <= centerX + hubRadius; x++) {
+        if (y > 0 && y < height - 1 && x > 0 && x < width - 1) {
+          const dx = x - centerX;
+          const dy = y - centerY;
+          const distSquared = dx * dx + dy * dy;
 
-    // Create surrounding chambers
-    for (let i = 1; i < chamberCount; i++) {
-      // Choose a random existing chamber to connect to
-      const connectTo = chambers[Math.floor(this.random() * chambers.length)];
-
-      // Decide where to place the new chamber (adjacent to existing chamber)
-      const side = Math.floor(this.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
-      const newWidth = 5 + Math.floor(this.random() * 10);
-      const newHeight = 5 + Math.floor(this.random() * 10);
-      let newX, newY;
-
-      switch (side) {
-        case 0: // Top
-          newX = connectTo.x + Math.floor(this.random() * (connectTo.width - 3));
-          newY = Math.max(1, connectTo.y - newHeight);
-          break;
-        case 1: // Right
-          newX = connectTo.x + connectTo.width;
-          newY = connectTo.y + Math.floor(this.random() * (connectTo.height - 3));
-          break;
-        case 2: // Bottom
-          newX = connectTo.x + Math.floor(this.random() * (connectTo.width - 3));
-          newY = connectTo.y + connectTo.height;
-          break;
-        case 3: // Left
-          newX = Math.max(1, connectTo.x - newWidth);
-          newY = connectTo.y + Math.floor(this.random() * (connectTo.height - 3));
-          break;
-        default:
-          newX = connectTo.x;
-          newY = connectTo.y;
+          if (distSquared <= hubRadius * hubRadius) {
+            layout[y][x] = 1; // Floor
+          }
+        }
       }
-
-      // Ensure the chamber fits within the room bounds
-      newX = Math.max(1, Math.min(width - newWidth - 1, newX));
-      newY = Math.max(1, Math.min(height - newHeight - 1, newY));
-
-      // Create the chamber
-      chambers.push({
-        x: newX,
-        y: newY,
-        width: newWidth,
-        height: newHeight
-      });
     }
 
-    // Carve out the chambers
-    chambers.forEach(chamber => {
-      for (let y = chamber.y; y < chamber.y + chamber.height; y++) {
-        for (let x = chamber.x; x < chamber.x + chamber.width; x++) {
-          if (y > 0 && y < height - 1 && x > 0 && x < width - 1) {
-            layout[y][x] = 1; // Floor
-          }
-        }
-      }
-    });
+    // Create radiating paths
+    const pathCount = 3 + Math.floor(this.random() * 3); // 3-5 paths
 
-    // Connect the chambers with passages
-    for (let i = 1; i < chambers.length; i++) {
-      const chamber = chambers[i];
+    for (let i = 0; i < pathCount; i++) {
+      const angle = (i / pathCount) * Math.PI * 2;
+      const pathLength = Math.min(
+        Math.floor(width * 0.5),
+        Math.floor(height * 0.5)
+      );
+      const pathWidth = 3 + Math.floor(this.random() * 3);
 
-      // Find closest chamber among those already connected (0 to i-1)
-      let minDistance = Infinity;
-      let closestIndex = 0;
+      // Calculate end point
+      const endX = centerX + Math.floor(Math.cos(angle) * pathLength);
+      const endY = centerY + Math.floor(Math.sin(angle) * pathLength);
 
-      for (let j = 0; j < i; j++) {
-        const otherChamber = chambers[j];
-        const dx = chamber.x + chamber.width / 2 - (otherChamber.x + otherChamber.width / 2);
-        const dy = chamber.y + chamber.height / 2 - (otherChamber.y + otherChamber.height / 2);
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestIndex = j;
-        }
+      // Check if end point is within room bounds (with margin)
+      if (endX < 2 || endX >= width - 2 || endY < 2 || endY >= height - 2) {
+        continue;
       }
 
-      // Connect this chamber to the closest one
-      const otherChamber = chambers[closestIndex];
+      // Create path
+      const steps = Math.max(Math.abs(endX - centerX), Math.abs(endY - centerY));
 
-      // Get center points
-      const x1 = chamber.x + Math.floor(chamber.width / 2);
-      const y1 = chamber.y + Math.floor(chamber.height / 2);
-      const x2 = otherChamber.x + Math.floor(otherChamber.width / 2);
-      const y2 = otherChamber.y + Math.floor(otherChamber.height / 2);
+      for (let step = 0; step <= steps; step++) {
+        const t = step / steps;
+        const pathX = Math.floor(centerX + (endX - centerX) * t);
+        const pathY = Math.floor(centerY + (endY - centerY) * t);
 
-      // Create L-shaped corridor between chambers
-      const corridorWidth = 2 + Math.floor(this.random() * 2);
-      const bendPoint = this.random() < 0.5 ? [x1, y2] : [x2, y1];
+        // Create path width
+        for (let w = -Math.floor(pathWidth / 2); w <= Math.floor(pathWidth / 2); w++) {
+          // Calculate perpendicular offset
+          const offsetX = Math.floor(-Math.sin(angle) * w);
+          const offsetY = Math.floor(Math.cos(angle) * w);
 
-      // Horizontal segment
-      const x_start = Math.min(x1, bendPoint[0]);
-      const x_end = Math.max(x1, bendPoint[0]);
+          const x = pathX + offsetX;
+          const y = pathY + offsetY;
 
-      for (let x = x_start; x <= x_end; x++) {
-        for (let y = y1 - Math.floor(corridorWidth / 2); y <= y1 + Math.floor(corridorWidth / 2); y++) {
           if (y > 0 && y < height - 1 && x > 0 && x < width - 1) {
             layout[y][x] = 1; // Floor
           }
         }
       }
 
-      // Vertical segment
-      const y_start = Math.min(bendPoint[1], y2);
-      const y_end = Math.max(bendPoint[1], y2);
+      // Add chamber at the end of the path
+      const chamberRadius = 3 + Math.floor(this.random() * 3);
 
-      for (let y = y_start; y <= y_end; y++) {
-        for (let x = bendPoint[0] - Math.floor(corridorWidth / 2); x <= bendPoint[0] + Math.floor(corridorWidth / 2); x++) {
+      for (let y = endY - chamberRadius; y <= endY + chamberRadius; y++) {
+        for (let x = endX - chamberRadius; x <= endX + chamberRadius; x++) {
           if (y > 0 && y < height - 1 && x > 0 && x < width - 1) {
-            layout[y][x] = 1; // Floor
+            const dx = x - endX;
+            const dy = y - endY;
+            const distSquared = dx * dx + dy * dy;
+
+            if (distSquared <= chamberRadius * chamberRadius) {
+              layout[y][x] = 1; // Floor
+            }
           }
         }
       }
@@ -1189,10 +1126,10 @@ export class EnhancedLevelGenerator {
 
       case 1: // Rectangular vault with columns
         // Create rectangular room
-        const padding = 2;
+        const columnPadding = 2;
 
-        for (let y = padding; y < height - padding; y++) {
-          for (let x = padding; x < width - padding; x++) {
+        for (let y = columnPadding; y < height - columnPadding; y++) {
+          for (let x = columnPadding; x < width - columnPadding; x++) {
             layout[y][x] = 1; // Floor
           }
         }
@@ -1201,21 +1138,27 @@ export class EnhancedLevelGenerator {
         const columnSpacing = 4; // Spacing between columns
 
         // Add corners
-        layout[padding][padding] = 0; // Top-left
-        layout[padding][width - padding - 1] = 0; // Top-right
-        layout[height - padding - 1][padding] = 0; // Bottom-left
-        layout[height - padding - 1][width - padding - 1] = 0; // Bottom-right
+        if (columnPadding < height && columnPadding < width) {
+          layout[columnPadding][columnPadding] = 0; // Wall
+          layout[columnPadding][width - columnPadding - 1] = 0; // Wall
+          layout[height - columnPadding - 1][columnPadding] = 0; // Wall
+          layout[height - columnPadding - 1][width - columnPadding - 1] = 0; // Wall
+        }
 
         // Add columns along top and bottom
-        for (let x = padding + columnSpacing; x < width - padding - 1; x += columnSpacing) {
-          layout[padding][x] = 0; // Top wall
-          layout[height - padding - 1][x] = 0; // Bottom wall
+        for (let x = columnPadding + columnSpacing; x < width - columnPadding - 1; x += columnSpacing) {
+          if (columnPadding < height && x < width) {
+            layout[columnPadding][x] = 0; // Wall
+            layout[height - columnPadding - 1][x] = 0; // Wall
+          }
         }
 
         // Add columns along left and right
-        for (let y = padding + columnSpacing; y < height - padding - 1; y += columnSpacing) {
-          layout[y][padding] = 0; // Left wall
-          layout[y][width - padding - 1] = 0; // Right wall
+        for (let y = columnPadding + columnSpacing; y < height - columnPadding - 1; y += columnSpacing) {
+          if (y < height && columnPadding < width) {
+            layout[y][columnPadding] = 0; // Wall
+            layout[y][width - columnPadding - 1] = 0; // Wall
+          }
         }
 
         // Add central treasure pedestal
@@ -1232,13 +1175,13 @@ export class EnhancedLevelGenerator {
 
         // Add outer walls
         for (let y = 0; y < height; y++) {
-          layout[y][0] = 0; // Left wall
-          layout[y][width - 1] = 0; // Right wall
+          layout[y][0] = 0; // Wall
+          layout[y][width - 1] = 0; // Wall
         }
 
         for (let x = 0; x < width; x++) {
-          layout[0][x] = 0; // Top wall
-          layout[height - 1][x] = 0; // Bottom wall
+          layout[0][x] = 0; // Wall
+          layout[height - 1][x] = 0; // Wall
         }
 
         // Create partitions
@@ -1257,7 +1200,14 @@ export class EnhancedLevelGenerator {
 
             // Add door in partition
             const doorX = Math.floor(width * (0.3 + this.random() * 0.4)); // 30-70% of width
-            layout[partitionY][doorX] = 1; // Door (floor)
+            layout[partitionY][doorX] = 1; // Floor (opening)
+
+            // Mark shop items (4 = shop item)
+            for (let y = 2; y < partitionY; y += 2) {
+              for (let x = 2; x < width - 2; x += 4) {
+                layout[y][x] = 4; // Shop item marker
+              }
+            }
           } else {
             // Vertical partition
             const partitionX = Math.floor(width * (0.3 + this.random() * 0.4)); // 30-70% of width
@@ -1268,7 +1218,14 @@ export class EnhancedLevelGenerator {
 
             // Add door in partition
             const doorY = Math.floor(height * (0.3 + this.random() * 0.4)); // 30-70% of height
-            layout[doorY][partitionX] = 1; // Door (floor)
+            layout[doorY][partitionX] = 1; // Floor (opening)
+
+            // Mark shop items
+            for (let y = 2; y < height - 2; y += 4) {
+              for (let x = partitionX + 1; x < width - 2; x += 2) {
+                layout[y][x] = 4; // Shop item marker
+              }
+            }
           }
         }
 
@@ -1490,29 +1447,37 @@ export class EnhancedLevelGenerator {
     // Create paths from center to each door
     // North door
     for (let y = 1; y <= centerY; y++) {
-      for (let x = centerX - 1; x <= centerX + 1; x++) {
-        layout[y][x] = 1; // Floor
+      for (let x = Math.max(0, centerX - 1); x <= Math.min(width - 1, centerX + 1); x++) {
+        if (y >= 0 && y < height) {
+          layout[y][x] = 1; // Floor
+        }
       }
     }
 
     // South door
     for (let y = centerY; y < height - 1; y++) {
-      for (let x = centerX - 1; x <= centerX + 1; x++) {
-        layout[y][x] = 1; // Floor
+      for (let x = Math.max(0, centerX - 1); x <= Math.min(width - 1, centerX + 1); x++) {
+        if (y >= 0 && y < height) {
+          layout[y][x] = 1; // Floor
+        }
       }
     }
 
     // East door
     for (let x = centerX; x < width - 1; x++) {
-      for (let y = centerY - 1; y <= centerY + 1; y++) {
-        layout[y][x] = 1; // Floor
+      for (let y = Math.max(0, centerY - 1); y <= Math.min(height - 1, centerY + 1); y++) {
+        if (x >= 0 && x < width) {
+          layout[y][x] = 1; // Floor
+        }
       }
     }
 
     // West door
     for (let x = 1; x <= centerX; x++) {
-      for (let y = centerY - 1; y <= centerY + 1; y++) {
-        layout[y][x] = 1; // Floor
+      for (let y = Math.max(0, centerY - 1); y <= Math.min(height - 1, centerY + 1); y++) {
+        if (x >= 0 && x < width) {
+          layout[y][x] = 1; // Floor
+        }
       }
     }
   }
