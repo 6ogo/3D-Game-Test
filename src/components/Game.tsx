@@ -105,28 +105,65 @@ const WebGLContextHandler = () => {
 const PlayerLight = () => {
   const { player } = useGameStore();
   const lightRef = useRef<THREE.PointLight>(null);
+  const secondaryLightRef = useRef<THREE.SpotLight>(null);
 
   useFrame(() => {
-    if (lightRef.current && player && player.position) {
-      lightRef.current.position.x = player.position.x;
-      lightRef.current.position.y = player.position.y + 5;
-      lightRef.current.position.z = player.position.z;
+    if (player && player.position) {
+      // Update point light position
+      if (lightRef.current) {
+        lightRef.current.position.x = player.position.x;
+        lightRef.current.position.y = player.position.y + 3;
+        lightRef.current.position.z = player.position.z;
+      }
+      
+      // Update spotlight position and target
+      if (secondaryLightRef.current) {
+        secondaryLightRef.current.position.x = player.position.x;
+        secondaryLightRef.current.position.y = player.position.y + 8;
+        secondaryLightRef.current.position.z = player.position.z;
+        
+        // Update spotlight target to point at player's feet
+        if (secondaryLightRef.current.target) {
+          secondaryLightRef.current.target.position.x = player.position.x;
+          secondaryLightRef.current.target.position.y = player.position.y;
+          secondaryLightRef.current.target.position.z = player.position.z;
+        }
+      }
     }
   });
 
   return (
-    <pointLight
-      ref={lightRef}
-      position={[0, 5, 0]}
-      intensity={1.5}
-      distance={20}
-      decay={2}
-      castShadow
-      shadow-mapSize-width={1024}
-      shadow-mapSize-height={1024}
-      shadow-camera-near={0.5}
-      shadow-camera-far={25}
-    />
+    <>
+      {/* Main point light that follows player */}
+      <pointLight
+        ref={lightRef}
+        position={[0, 3, 0]}
+        intensity={1.2}
+        distance={15}
+        decay={2}
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-camera-near={0.5}
+        shadow-camera-far={25}
+        color="#f9efd4" // Warm light color
+      />
+      
+      {/* Spotlight for dramatic lighting */}
+      <spotLight
+        ref={secondaryLightRef}
+        position={[0, 8, 0]}
+        intensity={1.5}
+        angle={0.5}
+        penumbra={0.5}
+        distance={20}
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        color="#ffffff"
+      />
+      <primitive object={new THREE.Object3D()} position={[0, 0, 0]} />
+    </>
   );
 };
 
@@ -178,10 +215,11 @@ export function Game() {
           powerPreference: 'high-performance',
           failIfMajorPerformanceCaveat: false
         }}
-        camera={{ position: [0, 20, 20], fov: 50 }}
+        camera={{ position: [0, 12, 15], fov: 60 }}
         onCreated={({ gl }) => {
           gl.setClearColor('#000000');
           gl.shadowMap.enabled = true;
+          gl.shadowMap.type = THREE.PCFSoftShadowMap;
           // Disable context menu on canvas to prevent issues
           gl.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
           
@@ -192,12 +230,12 @@ export function Game() {
         }}
       >
         {/* Ambient light for overall scene brightness */}
-        <ambientLight intensity={0.2} />
+        <ambientLight intensity={0.15} />
         
         {/* Main directional light with shadows */}
         <directionalLight
           position={[10, 20, 5]}
-          intensity={0.8}
+          intensity={0.4}
           castShadow
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
@@ -210,7 +248,7 @@ export function Game() {
         
         {/* Hemisphere light for more natural lighting */}
         <hemisphereLight
-          args={['#ffffff', '#004400', 0.4]}
+          args={['#b9d5ff', '#444466', 0.3]}
         />
         
         {/* Sky and stars for visual appeal */}

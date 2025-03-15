@@ -4,8 +4,8 @@ import { useGameStore } from '../store/gameStore';
 import * as THREE from 'three';
 
 // Camera settings
-const CAMERA_HEIGHT = 20;          // Height above player
-const CAMERA_DISTANCE = 10;        // Distance behind player (for perspective)
+const CAMERA_HEIGHT = 12;          // Height above player (reduced from 20)
+const CAMERA_DISTANCE = 15;        // Distance behind player (increased from 10)
 const CAMERA_SMOOTHING = 0.1;      // Lower = smoother camera (0.1 is very smooth, 0.5 is responsive)
 const CAMERA_LOOK_AHEAD = 5;       // How far ahead of the player to look based on movement
 const CAMERA_BOUNDS_PADDING = 5;   // Padding from room edges
@@ -62,46 +62,34 @@ export function CameraController() {
       }
     }
     
-    // Get player movement direction for look-ahead
-    const moveDirection = new THREE.Vector3();
-    if (player.velocity) {
-      moveDirection.set(
-        player.velocity.x || 0,
-        0,
-        player.velocity.z || 0
-      ).normalize();
-    }
+    // Calculate look-ahead based on player velocity
+    const lookAheadX = player.velocity ? player.velocity.x * CAMERA_LOOK_AHEAD : 0;
+    const lookAheadZ = player.velocity ? player.velocity.z * CAMERA_LOOK_AHEAD : 0;
     
-    // Calculate target position with look-ahead
+    // Calculate target position for camera (above and behind player)
     targetPosition.current.set(
-      player.position.x + moveDirection.x * CAMERA_LOOK_AHEAD,
+      player.position.x,
       player.position.y + CAMERA_HEIGHT,
-      player.position.z + moveDirection.z * CAMERA_LOOK_AHEAD + CAMERA_DISTANCE
+      player.position.z + CAMERA_DISTANCE
     );
     
-    // Constrain camera to room bounds
+    // Calculate look-at target (player position + look-ahead)
+    lookAtTarget.current.set(
+      player.position.x + lookAheadX,
+      player.position.y,  // Look at player height
+      player.position.z + lookAheadZ
+    );
+    
+    // Apply constraints to keep camera within room bounds
     targetPosition.current.x = Math.max(minX, Math.min(maxX, targetPosition.current.x));
     targetPosition.current.z = Math.max(minZ, Math.min(maxZ, targetPosition.current.z));
     
-    // Calculate look-at target (slightly ahead of player based on movement)
-    lookAtTarget.current.set(
-      player.position.x + moveDirection.x * CAMERA_LOOK_AHEAD * 0.5,
-      player.position.y,
-      player.position.z + moveDirection.z * CAMERA_LOOK_AHEAD * 0.5
-    );
-    
-    // Smoothly interpolate camera position
+    // Smoothly move camera to target position
     camera.position.lerp(targetPosition.current, CAMERA_SMOOTHING);
     
-    // Create a temporary vector for the current look-at position
-    const currentLookAt = new THREE.Vector3();
-    camera.getWorldDirection(currentLookAt);
-    currentLookAt.multiplyScalar(10).add(camera.position);
-    
-    // Smoothly interpolate look-at target
-    currentLookAt.lerp(lookAtTarget.current, CAMERA_SMOOTHING * 2);
-    camera.lookAt(currentLookAt);
+    // Look at target
+    camera.lookAt(lookAtTarget.current);
   });
   
-  return null; // This component doesn't render anything
+  return null;
 }

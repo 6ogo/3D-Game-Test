@@ -142,17 +142,56 @@ export function Player() {
   const updateDamageDealt = useGameStore((state) => state.updateDamageDealt);
   const setCurrentRoomId = useGameStore((state) => state.setCurrentRoomId);
   
+  // Keyboard state
+  const keyboard = useRef({
+    keysPressed: new Set<string>(),
+    pressed: function(key: string) {
+      return this.keysPressed.has(key);
+    }
+  }).current;
+
+  // Set up keyboard event listeners
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keyboard.keysPressed.add(e.code);
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keyboard.keysPressed.delete(e.code);
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 0) keyboard.keysPressed.add('Mouse0');
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (e.button === 0) keyboard.keysPressed.delete('Mouse0');
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [keyboard]);
+
   // Keyboard controls
   const getKeys = () => {
     return {
-      forward: false,
-      backward: false,
-      left: false,
-      right: false,
-      jump: false,
-      attack: false,
-      special: false,
-      cast: false
+      forward: keyboard.pressed('KeyW') || keyboard.pressed('ArrowUp'),
+      backward: keyboard.pressed('KeyS') || keyboard.pressed('ArrowDown'),
+      left: keyboard.pressed('KeyA') || keyboard.pressed('ArrowLeft'),
+      right: keyboard.pressed('KeyD') || keyboard.pressed('ArrowRight'),
+      jump: keyboard.pressed('Space'),
+      attack: keyboard.pressed('Mouse0') || keyboard.pressed('KeyF'),
+      special: keyboard.pressed('KeyQ') || keyboard.pressed('KeyE'),
+      cast: keyboard.pressed('KeyR')
     };
   };
 
