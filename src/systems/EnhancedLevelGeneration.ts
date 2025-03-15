@@ -397,8 +397,8 @@ export class EnhancedLevelGenerator {
    * Generate the layout for a room based on template
    */
   private generateRoomLayout(width: number, height: number, template: RoomTemplate): number[][] {
-    // Create empty layout filled with walls
-    const layout: number[][] = Array(height).fill(0).map(() => Array(width).fill(0));
+    // Create empty layout filled with walls - using proper 2D array initialization
+    const layout: number[][] = Array(height).fill(null).map(() => Array(width).fill(0));
 
     // Apply template-specific generation algorithm
     switch (template) {
