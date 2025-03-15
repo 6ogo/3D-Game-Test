@@ -1,18 +1,17 @@
 // Game.tsx - Fixed version with safe initialization
-import { useEffect, useState, useCallback } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
-import { PerspectiveCamera, Sky, Stars } from '@react-three/drei';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
+import { Sky, Stars } from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
+import * as THREE from 'three';
 
 // Import custom systems
-import { useGameSessionStore } from '../store/gameSessionStore';
 import { Player } from './Player';
-import { UI } from './UI';
 import { Level } from './Level';
 import { EnhancedLevelGenerator } from '../systems/EnhancedLevelGeneration';
 import { useGameStore } from '../store/gameStore';
-import { GameDebugTools } from '../utils/debug';
 import { CameraController } from './CameraController';
+import { useGameSessionStore } from '../store/gameSessionStore';
 
 // Safe initialization of potentially problematic systems
 // We'll create a custom hook for this
@@ -21,9 +20,8 @@ function useSafeInitialization() {
   const [isLevelLoaded, setIsLevelLoaded] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const { setCurrentLevel, setCurrentRoomId } = useGameStore();
-  const { scene } = useThree();
   
-  // Start game session
+  // Get session tracking functions
   const startSession = useGameSessionStore(state => state.startSession);
   
   useEffect(() => {
@@ -69,7 +67,7 @@ function useSafeInitialization() {
       console.error("Error initializing game:", err);
       setError(err instanceof Error ? err : new Error("Failed to initialize game"));
     }
-  }, [scene, startSession, setCurrentLevel, setCurrentRoomId]);
+  }, [startSession, setCurrentLevel, setCurrentRoomId]);
   
   return { initialized, isLevelLoaded, error };
 }
@@ -101,6 +99,35 @@ const WebGLContextHandler = () => {
   }, [gl]);
   
   return null;
+};
+
+// Player-centered lighting that follows the player
+const PlayerLight = () => {
+  const { player } = useGameStore();
+  const lightRef = useRef<THREE.PointLight>(null);
+
+  useFrame(() => {
+    if (lightRef.current && player && player.position) {
+      lightRef.current.position.x = player.position.x;
+      lightRef.current.position.y = player.position.y + 5;
+      lightRef.current.position.z = player.position.z;
+    }
+  });
+
+  return (
+    <pointLight
+      ref={lightRef}
+      position={[0, 5, 0]}
+      intensity={1.5}
+      distance={20}
+      decay={2}
+      castShadow
+      shadow-mapSize-width={1024}
+      shadow-mapSize-height={1024}
+      shadow-camera-near={0.5}
+      shadow-camera-far={25}
+    />
+  );
 };
 
 // Main Game component
@@ -165,12 +192,12 @@ export function Game() {
         }}
       >
         {/* Ambient light for overall scene brightness */}
-        <ambientLight intensity={0.3} />
+        <ambientLight intensity={0.2} />
         
         {/* Main directional light with shadows */}
         <directionalLight
           position={[10, 20, 5]}
-          intensity={1.5}
+          intensity={0.8}
           castShadow
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
@@ -183,7 +210,7 @@ export function Game() {
         
         {/* Hemisphere light for more natural lighting */}
         <hemisphereLight
-          args={['#ffffff', '#004400', 0.6]}
+          args={['#ffffff', '#004400', 0.4]}
         />
         
         {/* Sky and stars for visual appeal */}
@@ -193,6 +220,9 @@ export function Game() {
         {/* Camera controller for following the player */}
         <CameraController />
         
+        {/* Player-centered light that follows the player */}
+        <PlayerLight />
+        
         {/* Physics world */}
         <Physics gravity={[0, isLevelLoaded ? -30 : 0, 0]}>
           {isLevelLoaded && initialized && <Player />}
@@ -201,14 +231,7 @@ export function Game() {
         
         {/* WebGL context loss handler */}
         <WebGLContextHandler />
-        
-        {/* Perspective camera */}
-        <PerspectiveCamera makeDefault position={[0, 20, 20]} rotation={[-Math.PI / 4, 0, 0]} fov={50} />
-        
-        {/* Add debug tools if in development mode */}
-        {process.env.NODE_ENV === 'development' && <GameDebugTools />}
       </Canvas>
-      <UI />
     </div>
   );
 }
