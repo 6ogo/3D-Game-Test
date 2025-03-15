@@ -1,4 +1,4 @@
-import { Player, Equipment, Ability, PlayerStats, Boon, Buff } from '../types/game';
+import { Player, Equipment, Ability, PlayerStats, Boon } from '../types/game';
 
 // Define the different god categories
 export type GodCategory = 'zeus' | 'poseidon' | 'athena' | 'ares' | 'artemis' | 'dionysus' | 'demeter' | 'hermes';
@@ -542,7 +542,7 @@ export class ProgressionSystem {
   /**
    * Get boons available for a specific god
    */
-  getGodBoons(god: GodCategory, player: Player): EnhancedBoon[] {
+  getGodBoons(god: GodCategory, _player: Player): EnhancedBoon[] {
     return ENHANCED_BOONS.filter(boon => {
       // Filter for the requested god
       if (boon.god !== god) return false;

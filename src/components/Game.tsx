@@ -12,15 +12,17 @@ import { useGameSessionStore } from '../store/gameSessionStore';
 import { Player } from './Player';
 import { UI } from './UI';
 import { Level } from './Level';
-import { LevelManager } from '../systems/dynamicLevelLoad';
+import { EnhancedLevelGenerator } from '../systems/EnhancedLevelGeneration';
+import { useGameStore } from '../store/gameStore';
+import { GameDebugTools } from '../utils/debug';
 
 // Game scene setup component
 function GameScene() {
   const { scene, gl, camera } = useThree();
   const [isLevelLoaded, setIsLevelLoaded] = useState(false);
+  const { setCurrentLevel, setCurrentRoomId } = useGameStore();
   
   // References to managers
-  const levelManagerRef = useRef<LevelManager | null>(null);
   const effectsManagerRef = useRef<VisualEffectsManager | null>(null);
   const projectileManagerRef = useRef<ProjectileManager | null>(null);
   const enemyPoolRef = useRef<EnemyPool | null>(null);
@@ -34,9 +36,6 @@ function GameScene() {
     // Start tracking game session
     startSession();
     
-    // Initialize level manager
-    levelManagerRef.current = LevelManager.getInstance(scene);
-    
     // Initialize visual effects
     effectsManagerRef.current = VisualEffectsManager.getInstance(gl, scene, camera);
     
@@ -48,29 +47,44 @@ function GameScene() {
     // Initialize shader manager
     shaderManagerRef.current = new ShaderManager();
     
-    // Load first level
-    levelManagerRef.current.loadLevel('level-1').then(() => {
-      // Set lighting based on entrance room
-      if (levelManagerRef.current) {
-        const entranceRoom = levelManagerRef.current.getActiveRoom();
-        if (entranceRoom) {
-          effectsManagerRef.current?.setupEnvironmentLighting(entranceRoom.type);
-          
-          // Mark level as loaded - this will enable physics and player controls
-          setTimeout(() => {
-            setIsLevelLoaded(true);
-            console.log("Level loaded and ready - enabling player physics");
-          }, 500); // Small delay to ensure everything is rendered
-        }
-      }
+    // Generate level
+    const levelGenerator = new EnhancedLevelGenerator({
+      difficulty: 1,
+      roomCount: 7,
+      seed: Date.now().toString(),
+      branchingFactor: 0.4
     });
+    
+    const level = levelGenerator.generateLevel();
+    
+    // Set level in store
+    setCurrentLevel(level);
+    
+    // Set first room (entrance room) as current
+    const entranceRoom = level.rooms.find(room => room.isEntrance);
+    if (entranceRoom) {
+      setCurrentRoomId(entranceRoom.id);
+      
+      // Setup environment lighting based on room type
+      if (effectsManagerRef.current) {
+        effectsManagerRef.current.setupEnvironmentLighting(entranceRoom.type);
+      }
+    }
+    
+    console.log("Level generated:", level);
+    
+    // Mark level as loaded - this will enable physics and player controls
+    setTimeout(() => {
+      setIsLevelLoaded(true);
+      console.log("Level loaded and ready - enabling player physics");
+    }, 500); // Small delay to ensure everything is rendered
     
     // Cleanup on unmount
     return () => {
       // End game session and save stats
       useGameSessionStore.getState().endSession();
     };
-  }, [scene, gl, camera, startSession]);
+  }, [scene, gl, camera, startSession, setCurrentLevel, setCurrentRoomId]);
   
   // Update loop
   useFrame((_state, delta) => {
@@ -115,7 +129,7 @@ function GameScene() {
 
   return (
     <>
-      <ambientLight intensity={0.1} />
+      <ambientLight intensity={0.3} />
       {!isLevelLoaded && <LoadingScreen />}
       
       {/* Add a safe floor to prevent falling into the void */}
@@ -142,6 +156,8 @@ export function Game() {
         <Sky sunPosition={[100, 20, 100]} />
         <Stars radius={200} depth={50} count={5000} factor={4} />
         <GameScene />
+        {/* Add debug tools if in development mode */}
+        {process.env.NODE_ENV === 'development' && <GameDebugTools />}
       </Canvas>
       <UI />
     </div>

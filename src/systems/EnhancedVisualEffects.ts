@@ -190,7 +190,7 @@ export class EnhancedVisualEffects {
   private effectGeometries: Map<string, THREE.BufferGeometry> = new Map();
   
   // Debug mode
-  private readonly debug: boolean = false;
+  // private readonly debug: boolean = false; // Unused variable, commenting out
 
   /**
    * Create the visual effects system
@@ -511,7 +511,7 @@ export class EnhancedVisualEffects {
     
     // Create particles along the path
     const particleCount = Math.ceil(length * 5); // 5 particles per unit length
-    const step = length / particleCount;
+    // const step = length / particleCount; // Unused variable, commenting out
     
     for (let i = 0; i < particleCount; i++) {
       const t = i / particleCount;

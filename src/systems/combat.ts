@@ -20,7 +20,7 @@ export interface HitResult {
 
 export class CombatSystem {
   private static instance: CombatSystem;
-  private particles: any[] = [];
+  // private particles: any[] = []; // Unused variable, commenting out
   private projectiles: Map<string, {
     position: THREE.Vector3;
     velocity: THREE.Vector3;
@@ -337,7 +337,7 @@ export class CombatSystem {
   /**
    * Apply debuff effect to a target
    */
-  private applyDebuff(target: Player | Enemy, effect: AbilityEffect): void {
+  private applyDebuff(target: Player | Enemy, _effect: AbilityEffect): void {
     // Similar to buff, but with negative effects
     
     // Create visual effect
@@ -563,7 +563,7 @@ export class CombatSystem {
    */
   private createHitEffect(
     position: THREE.Vector3,
-    damage: number,
+    _damage: number,
     isCritical: boolean,
     effectType: string = 'hit'
   ): void {

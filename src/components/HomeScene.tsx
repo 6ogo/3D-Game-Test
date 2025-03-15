@@ -16,41 +16,47 @@ export function HomeScene() {
   const totalRuns = useMetaProgressionStore(state => state.totalRuns);
   const totalVictories = useMetaProgressionStore(state => state.totalVictories);
   const fastestVictory = useMetaProgressionStore(state => state.fastestVictory);
-  
+
   // Handle start game button
   const handleStartGame = () => {
     setStartingGame(true);
-    
+
     // Apply meta-progression bonuses to starting player
     const playerWithBonuses = applyMetaProgressionBonuses();
-    
+
     // Reset game with the enhanced player stats
     resetGame(playerWithBonuses);
-    
+
+    // Initialize game state for a new game
+    useGameStore.getState().startGame();
+
     // Transition to the game scene
     useGameFlowStore.getState().transitionToGame();
+
+    // Log start
+    console.log("Game starting...");
   };
-  
-  
+
+
   // Apply meta-progression bonuses to a new player
   const applyMetaProgressionBonuses = () => {
     const { permanentUpgrades } = useMetaProgressionStore.getState();
     const basePlayer = useGameStore.getState().player;
-    
+
     // Start with a fresh player
     const enhancedPlayer = { ...basePlayer };
-    
+
     // Apply all active upgrades
     permanentUpgrades.forEach(upgrade => {
       if (upgrade.currentLevel > 0) {
         const effect = upgrade.effect(upgrade.currentLevel);
-        
+
         // Apply specific effects based on upgrade type
         if ('maxHealthBonus' in effect) {
           enhancedPlayer.maxHealth += effect.maxHealthBonus;
           enhancedPlayer.health += effect.maxHealthBonus;
         }
-        
+
         if ('damageBonus' in effect) {
           enhancedPlayer.abilities.forEach(ability => {
             if (ability.type === 'attack') {
@@ -58,18 +64,18 @@ export function HomeScene() {
             }
           });
         }
-        
+
         if ('critChanceBonus' in effect) {
           enhancedPlayer.stats.criticalChance += effect.critChanceBonus;
         }
-        
+
         // Other effects would be applied similarly
       }
     });
-    
+
     return enhancedPlayer;
   };
-  
+
   return (
     <div className="w-full h-screen flex flex-col">
       {/* 3D Background Scene */}
@@ -83,7 +89,7 @@ export function HomeScene() {
           <HomeSceneEnvironment />
         </Canvas>
       </div>
-      
+
       {/* UI Overlay */}
       <div className="relative z-10 w-full h-full flex flex-col">
         {/* Header */}
@@ -95,9 +101,9 @@ export function HomeScene() {
                 <Zap className="text-yellow-500 mr-2" />
                 <span className="text-xl font-semibold">{formatNumber(souls)} Souls</span>
               </div>
-              
+
               {/* Clickable Boon Upgrade Button */}
-              <button 
+              <button
                 onClick={() => setShowUpgrades(!showUpgrades)}
                 className="flex items-center gap-1 px-3 py-1 bg-purple-700 hover:bg-purple-600 rounded-lg transition-colors"
               >
@@ -123,7 +129,7 @@ export function HomeScene() {
             </div>
           </div>
         </header>
-        
+
         {/* Main Content */}
         <div className="flex-1 flex flex-col p-4 overflow-hidden">
           {/* Boon Upgrades Panel - Conditionally shown */}
@@ -132,16 +138,16 @@ export function HomeScene() {
               <UpgradesPanel />
             </div>
           )}
-          
+
           {/* Main game content */}
           <div className="flex-1 flex justify-center items-center">
             {!showUpgrades && (
               <div className="text-center max-w-2xl mx-auto bg-black/40 p-6 rounded-lg">
                 <h2 className="text-2xl font-bold text-white mb-4">Welcome, Ascender</h2>
                 <p className="text-gray-300 mb-6">Prepare yourself for the challenges ahead. Upgrade your abilities with souls and begin your journey.</p>
-                
+
                 <div className="flex justify-center space-x-4 mb-6">
-                  <button 
+                  <button
                     onClick={() => setShowUpgrades(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-white transition-colors"
                   >
@@ -152,17 +158,16 @@ export function HomeScene() {
               </div>
             )}
           </div>
-          
+
           {/* Start Game Button - Always visible at bottom */}
           <div className="mt-auto mx-auto w-full max-w-md">
             <button
               onClick={handleStartGame}
               disabled={startingGame}
-              className={`w-full py-4 px-8 rounded-lg text-xl font-bold text-white transition-all ${
-                startingGame 
-                ? 'bg-gray-600 cursor-not-allowed' 
-                : 'bg-purple-700 hover:bg-purple-600 shadow-lg hover:shadow-purple-500/30'
-              }`}
+              className={`w-full py-4 px-8 rounded-lg text-xl font-bold text-white transition-all ${startingGame
+                  ? 'bg-gray-600 cursor-not-allowed'
+                  : 'bg-purple-700 hover:bg-purple-600 shadow-lg hover:shadow-purple-500/30'
+                }`}
             >
               {startingGame ? 'Ascending...' : 'Begin Ascent'}
             </button>
@@ -182,7 +187,7 @@ function HomeSceneEnvironment() {
         <planeGeometry args={[100, 100]} />
         <meshStandardMaterial color="#1a1a2e" />
       </mesh>
-      
+
       {/* Central altar/shrine */}
       <group position={[0, 0, -5]}>
         <mesh position={[0, 1, 0]} castShadow receiveShadow>
@@ -193,11 +198,11 @@ function HomeSceneEnvironment() {
           <cylinderGeometry args={[2, 2.5, 1, 6]} />
           <meshStandardMaterial color="#2a2a4a" />
         </mesh>
-        
+
         {/* Ethereal light effect */}
         <pointLight position={[0, 2, 0]} intensity={2} color="#9050ff" distance={10} />
       </group>
-      
+
       {/* Ambient particles would be added here in a full implementation */}
     </group>
   );
@@ -208,7 +213,7 @@ function UpgradesPanel() {
   const permanentUpgrades = useMetaProgressionStore(state => state.permanentUpgrades);
   const souls = useMetaProgressionStore(state => state.souls);
   const purchaseUpgrade = useMetaProgressionStore(state => state.purchaseUpgrade);
-  
+
   // Icons for different upgrade types
   const upgradeIcons: Record<string, React.ReactNode> = {
     'max-health': <Shield className="w-6 h-6 text-red-400" />,
@@ -217,32 +222,31 @@ function UpgradesPanel() {
     'crit-chance': <Target className="w-6 h-6 text-green-400" />,
     'soul-gathering': <Ghost className="w-6 h-6 text-purple-400" />,
   };
-  
+
   return (
     <div className="bg-black/60 rounded-lg p-4 h-full overflow-y-auto">
       <h2 className="text-2xl font-bold text-white mb-4">Permanent Upgrades</h2>
-      
+
       <div className="grid grid-cols-1 gap-4">
         {permanentUpgrades.map((upgrade) => {
           const canAfford = souls >= upgrade.cost;
           const isMaxed = upgrade.currentLevel >= upgrade.maxLevel;
-          
+
           return (
             <div
               key={upgrade.id}
-              className={`bg-gray-800/80 rounded-lg p-4 border ${
-                isMaxed 
+              className={`bg-gray-800/80 rounded-lg p-4 border ${isMaxed
                   ? 'border-yellow-500'
-                  : canAfford 
+                  : canAfford
                     ? 'border-blue-500'
                     : 'border-gray-700'
-              }`}
+                }`}
             >
               <div className="flex items-start">
                 <div className="mr-4">
                   {upgradeIcons[upgrade.id] || <div className="w-6 h-6 bg-gray-500 rounded-full" />}
                 </div>
-                
+
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-white">{upgrade.name}</h3>
@@ -250,33 +254,32 @@ function UpgradesPanel() {
                       Level {upgrade.currentLevel}/{upgrade.maxLevel}
                     </div>
                   </div>
-                  
+
                   <p className="text-gray-300 text-sm mt-1">{upgrade.description}</p>
-                  
+
                   <div className="mt-3 flex items-center justify-between">
                     <div className="flex items-center text-yellow-500">
                       <Zap className="w-4 h-4 mr-1" />
                       <span>{upgrade.cost} Souls</span>
                     </div>
-                    
+
                     <button
                       onClick={() => purchaseUpgrade(upgrade.id)}
                       disabled={isMaxed || !canAfford}
-                      className={`px-3 py-1 rounded text-sm font-semibold ${
-                        isMaxed 
+                      className={`px-3 py-1 rounded text-sm font-semibold ${isMaxed
                           ? 'bg-yellow-500/30 text-yellow-300 cursor-not-allowed'
                           : canAfford
                             ? 'bg-blue-600 text-white hover:bg-blue-500'
                             : 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                      }`}
+                        }`}
                     >
                       {isMaxed ? 'Maxed' : 'Upgrade'}
                     </button>
                   </div>
-                  
+
                   {/* Progress bar */}
                   <div className="mt-2 w-full h-1 bg-gray-700 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className={`h-full ${isMaxed ? 'bg-yellow-500' : 'bg-blue-500'}`}
                       style={{ width: `${(upgrade.currentLevel / upgrade.maxLevel) * 100}%` }}
                     />
@@ -290,5 +293,3 @@ function UpgradesPanel() {
     </div>
   );
 }
-
-// Run stats panel has been removed as it's no longer needed in our new UI layout

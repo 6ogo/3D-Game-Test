@@ -7,8 +7,8 @@ import { Level, Room, Enemy, Treasure, Equipment, Vector3 } from '../types/game'
 export type RoomTheme = 'castle' | 'dungeon' | 'forest' | 'void';
 
 // Room templates
-export type RoomTemplate = 
-  'standard' | 'circular' | 'cross' | 'corridorN' | 'corridorE' | 
+export type RoomTemplate =
+  'standard' | 'circular' | 'cross' | 'corridorN' | 'corridorE' |
   'chambers' | 'hub' | 'boss-arena' | 'treasure-vault' | 'shop';
 
 // Advanced options for level generation 
@@ -40,13 +40,13 @@ export class EnhancedLevelGenerator {
   private seed: string;
   // Initialize with a default function that gets properly set in setupRNG
   private random: () => number = () => Math.random();
-  
+
   // Generation options
   private options: LevelGenerationOptions;
-  
+
   // Tracking generated rooms
   private roomIndex: number = 0;
-  
+
   constructor(options: Partial<LevelGenerationOptions> = {}) {
     // Set default options
     this.options = {
@@ -69,28 +69,28 @@ export class EnhancedLevelGenerator {
       },
       ...options
     };
-    
+
     // Set up random number generator with seed
     this.seed = this.options.seed;
     this.setupRNG(this.seed);
-    
+
     // Initialize noise generator
     this.noise2D = createNoise2D(() => this.random());
   }
-  
+
   /**
    * Set up a seeded random number generator
    */
   private setupRNG(seed: string): void {
     // Simple seeded RNG
     let s = this.hashString(seed);
-    
+
     this.random = () => {
       s = Math.sin(s) * 10000;
       return s - Math.floor(s);
     };
   }
-  
+
   /**
    * Simple string hash function for seeding
    */
@@ -103,29 +103,30 @@ export class EnhancedLevelGenerator {
     }
     return hash;
   }
-  
+
   /**
    * Generate a complete level
    */
   generateLevel(): Level {
     // Reset room index
     this.roomIndex = 0;
-    
+
     // Select primary theme for this level
     const primaryTheme = this.options.themes[Math.floor(this.random() * this.options.themes.length)];
-    
+
     // Generate the rooms
     const rooms = this.generateRooms();
-    
+
     // Connect the rooms
     this.connectRooms(rooms);
-    
+
     // Populate rooms with enemies, treasures, etc.
     const enemies = this.populateEnemies(rooms);
     const treasures = this.placeTreasures(rooms);
     const boss = this.generateBoss(rooms.find(room => room.type === 'boss')!);
-    
-    return {
+
+    // Create the level object
+    const level = {
       id: `level-${this.seed}`,
       difficulty: this.options.difficulty,
       theme: primaryTheme,
@@ -134,58 +135,62 @@ export class EnhancedLevelGenerator {
       treasures,
       boss
     };
+
+    // Validate the level to ensure all properties are valid
+    return this.validateLevel(level);
   }
-  
+
+
   /**
    * Generate all rooms for the level
    */
   private generateRooms(): Room[] {
     const rooms: Room[] = [];
     const mainPathLength = Math.min(this.options.mainPath, this.options.roomCount);
-    
+
     // Calculate room distribution
     // Calculate rooms for different types
     // Calculate normal room distribution
-    const normalRoomCount = this.options.roomCount 
+    const normalRoomCount = this.options.roomCount
       - 1 // Entrance
       - 1 // Boss
       - Math.floor(this.options.roomCount * this.options.specialRoomChance.elite)
       - Math.floor(this.options.roomCount * this.options.specialRoomChance.treasure)
       - Math.floor(this.options.roomCount * this.options.specialRoomChance.shop);
-    
+
     // Calculate rooms per branch for balanced distribution
     const roomsPerBranch = Math.ceil(normalRoomCount / Math.max(1, this.options.mainPath - 1));
-    
+
     // Generate entrance room
     const entranceRoom = this.generateRoom('normal', 'standard');
     entranceRoom.isEntrance = true;
     rooms.push(entranceRoom);
-    
+
     // Generate main path rooms (leading to boss)
     for (let i = 1; i < mainPathLength - 1; i++) {
       // Distribute rooms based on calculated rooms per branch
       const branchRooms = i < mainPathLength - 2 ? roomsPerBranch : normalRoomCount - (i - 1) * roomsPerBranch;
       let roomType: Room['type'] = 'normal';
       let template: RoomTemplate = 'standard';
-      
+
       // Check if there's a forced room at this position
       const forcedRoom = this.options.forcedRooms?.find(room => room.position === i);
-      
+
       if (forcedRoom) {
         roomType = forcedRoom.type;
         template = forcedRoom.template;
       } else {
         // Determine room type based on position and remaining rooms
         const normalizedPosition = i / (mainPathLength - 1); // 0 to 1
-        
+
         // Adjust probabilities based on remaining rooms in branch
         const remainingRoomMultiplier = branchRooms > 0 ? 1 / branchRooms : 1;
-        
+
         // More challenging rooms later in the path
-        const eliteChance = this.options.specialRoomChance.elite * remainingRoomMultiplier 
+        const eliteChance = this.options.specialRoomChance.elite * remainingRoomMultiplier
           * (0.5 + normalizedPosition * 1.5) // More elites later
           * (1 + this.options.difficulty * 0.2); // More elites at higher difficulty
-          
+
         if (this.random() < eliteChance) {
           roomType = 'elite';
           template = this.chooseRoomTemplate('elite');
@@ -194,51 +199,51 @@ export class EnhancedLevelGenerator {
           template = this.chooseRoomTemplate('normal');
         }
       }
-      
+
       const room = this.generateRoom(roomType, template);
       rooms.push(room);
     }
-    
+
     // Generate boss room at end of main path
     const bossRoom = this.generateRoom('boss', 'boss-arena');
     rooms.push(bossRoom);
-    
+
     // Generate branch rooms (optional paths)
     const remainingRooms = this.options.roomCount - rooms.length;
     if (remainingRooms > 0) {
       // Prioritize adding specific room types first
       const treasureRoomCount = Math.floor(this.options.roomCount * this.options.specialRoomChance.treasure);
       const shopRoomCount = Math.floor(this.options.roomCount * this.options.specialRoomChance.shop);
-      
+
       // Create treasure rooms
       for (let i = 0; i < treasureRoomCount && rooms.length < this.options.roomCount; i++) {
         const treasureRoom = this.generateRoom('treasure', 'treasure-vault');
         rooms.push(treasureRoom);
       }
-      
+
       // Create shop rooms
       for (let i = 0; i < shopRoomCount && rooms.length < this.options.roomCount; i++) {
         const shopRoom = this.generateRoom('normal', 'shop'); // Using 'normal' type for game compatibility
         rooms.push(shopRoom);
       }
-      
+
       // Fill any remaining slots with normal rooms
       while (rooms.length < this.options.roomCount) {
         const room = this.generateRoom('normal', this.chooseRoomTemplate('normal'));
         rooms.push(room);
       }
     }
-    
+
     return rooms;
   }
-  
+
   /**
    * Generate a single room
    */
   private generateRoom(type: Room['type'], template: RoomTemplate): Room {
     // Determine room size based on template and type
     let width = 20, height = 20;
-    
+
     switch (template) {
       case 'standard':
         width = 20 + Math.floor(this.random() * 10);
@@ -287,10 +292,10 @@ export class EnhancedLevelGenerator {
         height = 20 + Math.floor(this.random() * 8);
         break;
     }
-    
+
     // Generate room layout
     const layout = this.generateRoomLayout(width, height, template);
-    
+
     // Create room object
     const room: Room = {
       id: `room-${this.roomIndex++}`,
@@ -302,10 +307,10 @@ export class EnhancedLevelGenerator {
       connections: [],
       isEntrance: false
     };
-    
+
     return room;
   }
-  
+
   /**
    * Choose an appropriate room template based on room type
    */
@@ -361,21 +366,21 @@ export class EnhancedLevelGenerator {
         shop: 0
       }
     };
-    
+
     // Get weights for the specified room type
     const weights = templateWeights[roomType];
-    
+
     // Create cumulative weights
     const cumulativeWeights: [RoomTemplate, number][] = [];
     let total = 0;
-    
+
     for (const [template, weight] of Object.entries(weights)) {
       if (weight > 0) {
         total += weight;
         cumulativeWeights.push([template as RoomTemplate, total]);
       }
     }
-    
+
     // Select template based on weights
     const roll = this.random() * total;
     for (const [template, cumulative] of cumulativeWeights) {
@@ -383,18 +388,18 @@ export class EnhancedLevelGenerator {
         return template;
       }
     }
-    
+
     // Fallback
     return 'standard';
   }
-  
+
   /**
    * Generate the layout for a room based on template
    */
   private generateRoomLayout(width: number, height: number, template: RoomTemplate): number[][] {
     // Create empty layout filled with walls
     const layout: number[][] = Array(height).fill(0).map(() => Array(width).fill(0));
-    
+
     // Apply template-specific generation algorithm
     switch (template) {
       case 'standard':
@@ -431,16 +436,16 @@ export class EnhancedLevelGenerator {
         // Default to standard room
         this.generateStandardRoom(layout, width, height);
     }
-    
+
     // Add doors - these are critical for room connections
     this.addDoors(layout, width, height);
-    
+
     // Add environmental details (decorations, obstacles)
     this.addEnvironmentalDetails(layout, width, height, template);
-    
+
     return layout;
   }
-  
+
   /**
    * Generate a standard room layout using noise
    */
@@ -448,7 +453,7 @@ export class EnhancedLevelGenerator {
     // Parameters
     const scale = 0.1;
     const threshold = 0.3; // Higher = more walls
-    
+
     // Create noise-based layout
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -462,22 +467,22 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     // Ensure the central area is walkable
     const centerX = Math.floor(width / 2);
     const centerY = Math.floor(height / 2);
     const centralRadius = Math.min(width, height) * 0.25;
-    
+
     for (let y = Math.max(1, centerY - centralRadius); y <= Math.min(height - 2, centerY + centralRadius); y++) {
       for (let x = Math.max(1, centerX - centralRadius); x <= Math.min(width - 2, centerX + centralRadius); x++) {
         layout[y][x] = 1; // Floor
       }
     }
-    
+
     // Add walkable paths from center to edges
     this.addWalkablePaths(layout, width, height);
   }
-  
+
   /**
    * Generate a circular room layout
    */
@@ -487,14 +492,14 @@ export class EnhancedLevelGenerator {
     const maxRadius = Math.min(centerX, centerY) - 1;
     const innerRadius = maxRadius * 0.3; // Optional inner wall for donut shape
     const createDonut = this.random() < 0.4; // 40% chance of donut shape
-    
+
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         // Distance from center
         const dx = x - centerX;
         const dy = y - centerY;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        
+
         // Outer circle
         if (distance < maxRadius) {
           // Optional inner wall for donut shape
@@ -508,16 +513,16 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     // If it's a donut, add some passages through the inner wall
     if (createDonut) {
       const passages = 2 + Math.floor(this.random() * 3); // 2-4 passages
-      
+
       for (let i = 0; i < passages; i++) {
         const angle = (i / passages) * Math.PI * 2;
         const px = Math.floor(centerX + Math.cos(angle) * innerRadius);
         const py = Math.floor(centerY + Math.sin(angle) * innerRadius);
-        
+
         // Create a small passage
         for (let y = Math.max(1, py - 1); y <= Math.min(height - 2, py + 1); y++) {
           for (let x = Math.max(1, px - 1); x <= Math.min(width - 2, px + 1); x++) {
@@ -526,25 +531,25 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     // Ensure door areas are clear
     this.addDoorAreas(layout, width, height);
   }
-  
+
   /**
    * Generate a corridor-style room (N=North-South, E=East-West)
    */
   private generateCorridorRoom(layout: number[][], width: number, height: number, direction: 'N' | 'E'): void {
     const isNorthSouth = direction === 'N';
-    
+
     // Set corridor parameters
     const corridorWidth = Math.max(5, Math.floor((isNorthSouth ? width : height) * 0.3));
-    
+
     if (isNorthSouth) {
       // North-South corridor
       const corridorStart = Math.floor((width - corridorWidth) / 2);
       const corridorEnd = corridorStart + corridorWidth;
-      
+
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
           if (x >= corridorStart && x < corridorEnd) {
@@ -554,11 +559,11 @@ export class EnhancedLevelGenerator {
           }
         }
       }
-      
+
       // Add some side chambers
       const chambers = 1 + Math.floor(this.random() * 3); // 1-3 chambers
       const baseHeight = Math.floor(height / (chambers + 1));
-      
+
       for (let i = 1; i <= chambers; i++) {
         // Initialize chamber dimensions first
         const chamberDims = {
@@ -567,19 +572,19 @@ export class EnhancedLevelGenerator {
         };
         const chamberY = i * baseHeight;
         const chamberSide = this.random() < 0.5 ? 'left' : 'right';
-        
+
         if (chamberSide === 'left') {
           // Left side chamber
-          for (let y = Math.max(1, chamberY - Math.floor(chamberDims.height / 2)); 
-               y < Math.min(height - 1, chamberY + Math.floor(chamberDims.height / 2)); y++) {
+          for (let y = Math.max(1, chamberY - Math.floor(chamberDims.height / 2));
+            y < Math.min(height - 1, chamberY + Math.floor(chamberDims.height / 2)); y++) {
             for (let x = Math.max(1, corridorStart - chamberDims.width); x < corridorStart; x++) {
               layout[y][x] = 1; // Floor
             }
           }
         } else {
           // Right side chamber
-          for (let y = Math.max(1, chamberY - Math.floor(chamberDims.height / 2)); 
-               y < Math.min(height - 1, chamberY + Math.floor(chamberDims.height / 2)); y++) {
+          for (let y = Math.max(1, chamberY - Math.floor(chamberDims.height / 2));
+            y < Math.min(height - 1, chamberY + Math.floor(chamberDims.height / 2)); y++) {
             for (let x = corridorEnd; x < Math.min(width - 1, corridorEnd + chamberDims.width); x++) {
               layout[y][x] = 1; // Floor
             }
@@ -590,7 +595,7 @@ export class EnhancedLevelGenerator {
       // East-West corridor
       const corridorStart = Math.floor((height - corridorWidth) / 2);
       const corridorEnd = corridorStart + corridorWidth;
-      
+
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
           if (y >= corridorStart && y < corridorEnd) {
@@ -600,12 +605,12 @@ export class EnhancedLevelGenerator {
           }
         }
       }
-      
+
       // Add some side chambers
       const chambers = 1 + Math.floor(this.random() * 3); // 1-3 chambers
       // Calculate spacing between chambers for even distribution
       const chamberSpacing = Math.floor(width / (chambers + 1));
-      
+
       for (let i = 1; i <= chambers; i++) {
         // Initialize chamber dimensions and position
         const chamberDims = {
@@ -614,51 +619,123 @@ export class EnhancedLevelGenerator {
         };
         const chamberPos = i * chamberSpacing;
         const chamberSide = this.random() < 0.5 ? 'top' : 'bottom';
-        
+
         if (chamberSide === 'top') {
           // Top side chamber
           for (let y = Math.max(1, corridorStart - chamberDims.height); y < corridorStart; y++) {
-            for (let x = Math.max(1, chamberPos - Math.floor(chamberDims.width / 2)); 
-                 x < Math.min(width - 1, chamberPos + Math.floor(chamberDims.width / 2)); x++) {
+            for (let x = Math.max(1, chamberPos - Math.floor(chamberDims.width / 2));
+              x < Math.min(width - 1, chamberPos + Math.floor(chamberDims.width / 2)); x++) {
               layout[y][x] = 1; // Floor
             }
           }
         } else {
           // Bottom side chamber
           for (let y = corridorEnd; y < Math.min(height - 1, corridorEnd + chamberDims.height); y++) {
-            for (let x = Math.max(1, chamberPos - Math.floor(chamberDims.width / 2)); 
-                 x < Math.min(width - 1, chamberPos + Math.floor(chamberDims.width / 2)); x++) {
+            for (let x = Math.max(1, chamberPos - Math.floor(chamberDims.width / 2));
+              x < Math.min(width - 1, chamberPos + Math.floor(chamberDims.width / 2)); x++) {
               layout[y][x] = 1; // Floor
             }
           }
         }
       }
     }
-    
+
     // Ensure door areas are clear
     this.addDoorAreas(layout, width, height);
   }
-  
+
+  private validateLevel(level: Level): Level {
+    // Ensure all rooms have valid sizes
+    level.rooms = level.rooms.map(room => {
+      if (!room.size || room.size.width < 10 || room.size.height < 10) {
+        room.size = {
+          width: 20,
+          height: 20
+        };
+      }
+      return room;
+    });
+
+    // Ensure all rooms have layouts
+    level.rooms = level.rooms.map(room => {
+      if (!room.layout || room.layout.length === 0) {
+        // Generate a simple layout
+        const { width, height } = room.size;
+        const layout: number[][] = [];
+
+        for (let y = 0; y < height; y++) {
+          const row: number[] = [];
+          for (let x = 0; x < width; x++) {
+            if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
+              row.push(0); // Wall around perimeter
+            } else {
+              row.push(1); // Floor in the middle
+            }
+          }
+          layout.push(row);
+        }
+
+        // Add doors based on connections
+        const doorPositions = [
+          [Math.floor(width / 2), 0], // North
+          [width - 1, Math.floor(height / 2)], // East
+          [Math.floor(width / 2), height - 1], // South
+          [0, Math.floor(height / 2)] // West
+        ];
+
+        room.connections.forEach((_, index) => {
+          if (index < doorPositions.length) {
+            const [doorX, doorY] = doorPositions[index];
+            layout[doorY][doorX] = 1; // Door (floor tile in the wall)
+          }
+        });
+
+        room.layout = layout;
+      }
+
+      return room;
+    });
+
+    // Make sure enemy positions are valid
+    level.rooms.forEach(room => {
+      room.enemies = room.enemies.map(enemy => {
+        // Ensure enemy has a valid position
+        if (!enemy.position || isNaN(enemy.position.x) || isNaN(enemy.position.y) || isNaN(enemy.position.z)) {
+          // Place in a valid position within the room
+          enemy.position = {
+            x: Math.floor(room.size.width / 2),
+            y: 1,
+            z: Math.floor(room.size.height / 2)
+          };
+        }
+
+        return enemy;
+      });
+    });
+
+    return level;
+  }
+
   /**
    * Generate a cross-shaped room
    */
   private generateCrossRoom(layout: number[][], width: number, height: number): void {
     const centerX = Math.floor(width / 2);
     const centerY = Math.floor(height / 2);
-    
+
     // Set corridor widths
     const horizontalHeight = Math.max(5, Math.floor(height * 0.3));
     const verticalWidth = Math.max(5, Math.floor(width * 0.3));
-    
+
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         // Create cross shape with horizontal and vertical corridors
-        const inHorizontalCorridor = y >= centerY - Math.floor(horizontalHeight / 2) && 
-                                 y < centerY + Math.ceil(horizontalHeight / 2);
-                                 
-        const inVerticalCorridor = x >= centerX - Math.floor(verticalWidth / 2) && 
-                               x < centerX + Math.ceil(verticalWidth / 2);
-                               
+        const inHorizontalCorridor = y >= centerY - Math.floor(horizontalHeight / 2) &&
+          y < centerY + Math.ceil(horizontalHeight / 2);
+
+        const inVerticalCorridor = x >= centerX - Math.floor(verticalWidth / 2) &&
+          x < centerX + Math.ceil(verticalWidth / 2);
+
         if (inHorizontalCorridor || inVerticalCorridor) {
           layout[y][x] = 1; // Floor
         } else {
@@ -666,22 +743,22 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     // Ensure walls around the outer edge
     for (let y = 0; y < height; y++) {
       layout[y][0] = 0; // Left wall
       layout[y][width - 1] = 0; // Right wall
     }
-    
+
     for (let x = 0; x < width; x++) {
       layout[0][x] = 0; // Top wall
       layout[height - 1][x] = 0; // Bottom wall
     }
-    
+
     // Ensure door areas are clear
     this.addDoorAreas(layout, width, height);
   }
-  
+
   /**
    * Generate a room with multiple connected chambers
    */
@@ -692,35 +769,35 @@ export class EnhancedLevelGenerator {
         layout[y][x] = 0; // Wall
       }
     }
-    
+
     // Parameters for chambers
     const chamberCount = 3 + Math.floor(this.random() * 3); // 3-5 chambers
-    const chambers: {x: number, y: number, width: number, height: number}[] = [];
-    
+    const chambers: { x: number, y: number, width: number, height: number }[] = [];
+
     // Create central chamber first
     const centerX = Math.floor(width / 2);
     const centerY = Math.floor(height / 2);
     const centerWidth = Math.floor(width * 0.3);
     const centerHeight = Math.floor(height * 0.3);
-    
+
     chambers.push({
       x: centerX - Math.floor(centerWidth / 2),
       y: centerY - Math.floor(centerHeight / 2),
       width: centerWidth,
       height: centerHeight
     });
-    
+
     // Create surrounding chambers
     for (let i = 1; i < chamberCount; i++) {
       // Choose a random existing chamber to connect to
       const connectTo = chambers[Math.floor(this.random() * chambers.length)];
-      
+
       // Decide where to place the new chamber (adjacent to existing chamber)
       const side = Math.floor(this.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
       const newWidth = 5 + Math.floor(this.random() * 10);
       const newHeight = 5 + Math.floor(this.random() * 10);
       let newX, newY;
-      
+
       switch (side) {
         case 0: // Top
           newX = connectTo.x + Math.floor(this.random() * (connectTo.width - 3));
@@ -742,11 +819,11 @@ export class EnhancedLevelGenerator {
           newX = connectTo.x;
           newY = connectTo.y;
       }
-      
+
       // Ensure the chamber fits within the room bounds
       newX = Math.max(1, Math.min(width - newWidth - 1, newX));
       newY = Math.max(1, Math.min(height - newHeight - 1, newY));
-      
+
       // Create the chamber
       chambers.push({
         x: newX,
@@ -755,7 +832,7 @@ export class EnhancedLevelGenerator {
         height: newHeight
       });
     }
-    
+
     // Carve out the chambers
     chambers.forEach(chamber => {
       for (let y = chamber.y; y < chamber.y + chamber.height; y++) {
@@ -766,44 +843,44 @@ export class EnhancedLevelGenerator {
         }
       }
     });
-    
+
     // Connect the chambers with passages
     for (let i = 1; i < chambers.length; i++) {
       const chamber = chambers[i];
-      
+
       // Find closest chamber among those already connected (0 to i-1)
       let minDistance = Infinity;
       let closestIndex = 0;
-      
+
       for (let j = 0; j < i; j++) {
         const otherChamber = chambers[j];
-        const dx = chamber.x + chamber.width/2 - (otherChamber.x + otherChamber.width/2);
-        const dy = chamber.y + chamber.height/2 - (otherChamber.y + otherChamber.height/2);
+        const dx = chamber.x + chamber.width / 2 - (otherChamber.x + otherChamber.width / 2);
+        const dy = chamber.y + chamber.height / 2 - (otherChamber.y + otherChamber.height / 2);
         const distance = Math.sqrt(dx * dx + dy * dy);
-        
+
         if (distance < minDistance) {
           minDistance = distance;
           closestIndex = j;
         }
       }
-      
+
       // Connect this chamber to the closest one
       const otherChamber = chambers[closestIndex];
-      
+
       // Get center points
       const x1 = chamber.x + Math.floor(chamber.width / 2);
       const y1 = chamber.y + Math.floor(chamber.height / 2);
       const x2 = otherChamber.x + Math.floor(otherChamber.width / 2);
       const y2 = otherChamber.y + Math.floor(otherChamber.height / 2);
-      
+
       // Create L-shaped corridor between chambers
       const corridorWidth = 2 + Math.floor(this.random() * 2);
       const bendPoint = this.random() < 0.5 ? [x1, y2] : [x2, y1];
-      
+
       // Horizontal segment
       const x_start = Math.min(x1, bendPoint[0]);
       const x_end = Math.max(x1, bendPoint[0]);
-      
+
       for (let x = x_start; x <= x_end; x++) {
         for (let y = y1 - Math.floor(corridorWidth / 2); y <= y1 + Math.floor(corridorWidth / 2); y++) {
           if (y > 0 && y < height - 1 && x > 0 && x < width - 1) {
@@ -811,11 +888,11 @@ export class EnhancedLevelGenerator {
           }
         }
       }
-      
+
       // Vertical segment
       const y_start = Math.min(bendPoint[1], y2);
       const y_end = Math.max(bendPoint[1], y2);
-      
+
       for (let y = y_start; y <= y_end; y++) {
         for (let x = bendPoint[0] - Math.floor(corridorWidth / 2); x <= bendPoint[0] + Math.floor(corridorWidth / 2); x++) {
           if (y > 0 && y < height - 1 && x > 0 && x < width - 1) {
@@ -824,11 +901,11 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     // Ensure door areas are clear
     this.addDoorAreas(layout, width, height);
   }
-  
+
   /**
    * Generate a hub room with paths radiating from center
    */
@@ -839,79 +916,79 @@ export class EnhancedLevelGenerator {
         layout[y][x] = 0; // Wall
       }
     }
-    
+
     // Create central hub
     const centerX = Math.floor(width / 2);
     const centerY = Math.floor(height / 2);
     const hubRadius = Math.min(Math.floor(width * 0.2), Math.floor(height * 0.2));
-    
+
     for (let y = centerY - hubRadius; y <= centerY + hubRadius; y++) {
       for (let x = centerX - hubRadius; x <= centerX + hubRadius; x++) {
         if (y > 0 && y < height - 1 && x > 0 && x < width - 1) {
           const dx = x - centerX;
           const dy = y - centerY;
           const distSquared = dx * dx + dy * dy;
-          
+
           if (distSquared <= hubRadius * hubRadius) {
             layout[y][x] = 1; // Floor
           }
         }
       }
     }
-    
+
     // Create radiating paths
     const pathCount = 3 + Math.floor(this.random() * 3); // 3-5 paths
-    
+
     for (let i = 0; i < pathCount; i++) {
       const angle = (i / pathCount) * Math.PI * 2;
       const pathLength = Math.min(
-        Math.floor(width * 0.5), 
+        Math.floor(width * 0.5),
         Math.floor(height * 0.5)
       );
       const pathWidth = 3 + Math.floor(this.random() * 3);
-      
+
       // Calculate end point
       const endX = centerX + Math.floor(Math.cos(angle) * pathLength);
       const endY = centerY + Math.floor(Math.sin(angle) * pathLength);
-      
+
       // Check if end point is within room bounds (with margin)
       if (endX < 2 || endX >= width - 2 || endY < 2 || endY >= height - 2) {
         continue;
       }
-      
+
       // Create path
       const steps = Math.max(Math.abs(endX - centerX), Math.abs(endY - centerY));
-      
+
       for (let step = 0; step <= steps; step++) {
         const t = step / steps;
         const pathX = Math.floor(centerX + (endX - centerX) * t);
         const pathY = Math.floor(centerY + (endY - centerY) * t);
-        
+
         // Create path width
         for (let w = -Math.floor(pathWidth / 2); w <= Math.floor(pathWidth / 2); w++) {
           // Calculate perpendicular offset
           const offsetX = Math.floor(-Math.sin(angle) * w);
           const offsetY = Math.floor(Math.cos(angle) * w);
-          
+
           const x = pathX + offsetX;
           const y = pathY + offsetY;
-          
+
           if (y > 0 && y < height - 1 && x > 0 && x < width - 1) {
             layout[y][x] = 1; // Floor
           }
         }
       }
-      
+
       // Add chamber at the end of the path
       const chamberRadius = 3 + Math.floor(this.random() * 3);
-      
+
       for (let y = endY - chamberRadius; y <= endY + chamberRadius; y++) {
         for (let x = endX - chamberRadius; x <= endX + chamberRadius; x++) {
           if (y > 0 && y < height - 1 && x > 0 && x < width - 1) {
             const dx = x - endX;
             const dy = y - endY;
             const distSquared = dx * dx + dy * dy;
-            
+
             if (distSquared <= chamberRadius * chamberRadius) {
               layout[y][x] = 1; // Floor
             }
@@ -919,11 +996,11 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     // Ensure door areas are clear
     this.addDoorAreas(layout, width, height);
   }
-  
+
   /**
    * Generate a boss arena with a large central area and possibly obstacles
    */
@@ -932,17 +1009,17 @@ export class EnhancedLevelGenerator {
     const centerX = Math.floor(width / 2);
     const centerY = Math.floor(height / 2);
     const isCircular = this.random() < 0.7; // 70% chance of circular arena
-    
+
     if (isCircular) {
       // Circular arena
       const radius = Math.min(Math.floor(width * 0.4), Math.floor(height * 0.4));
-      
+
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
           const dx = x - centerX;
           const dy = y - centerY;
           const distSquared = dx * dx + dy * dy;
-          
+
           if (distSquared <= radius * radius) {
             layout[y][x] = 1; // Floor
           } else {
@@ -956,7 +1033,7 @@ export class EnhancedLevelGenerator {
       const arenaHeight = Math.floor(height * 0.8);
       const startX = centerX - Math.floor(arenaWidth / 2);
       const startY = centerY - Math.floor(arenaHeight / 2);
-      
+
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
           if (y >= startY && y < startY + arenaHeight && x >= startX && x < startX + arenaWidth) {
@@ -967,32 +1044,32 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     // Add obstacles for cover and interest
     const addObstacles = this.random() < 0.7; // 70% chance of having obstacles
-    
+
     if (addObstacles) {
       const obstacleCount = 3 + Math.floor(this.random() * 5); // 3-7 obstacles
-      
+
       for (let i = 0; i < obstacleCount; i++) {
         // Determine obstacle type and size
         const isColumn = this.random() < 0.6; // 60% chance of column vs. wall
-        
+
         if (isColumn) {
           // Column obstacle
           const obstacleRadius = 1 + Math.floor(this.random() * 2);
-          
+
           // Random position, but not too close to center or edges
           const minDist = Math.min(Math.floor(width * 0.15), Math.floor(height * 0.15));
           const maxDist = Math.min(Math.floor(width * 0.4), Math.floor(height * 0.4));
-          
+
           // Get random angle and distance from center
           const angle = this.random() * Math.PI * 2;
           const distance = minDist + this.random() * (maxDist - minDist);
-          
+
           const obstacleX = centerX + Math.floor(Math.cos(angle) * distance);
           const obstacleY = centerY + Math.floor(Math.sin(angle) * distance);
-          
+
           // Create column
           for (let y = obstacleY - obstacleRadius; y <= obstacleY + obstacleRadius; y++) {
             for (let x = obstacleX - obstacleRadius; x <= obstacleX + obstacleRadius; x++) {
@@ -1000,7 +1077,7 @@ export class EnhancedLevelGenerator {
                 const dx = x - obstacleX;
                 const dy = y - obstacleY;
                 const distSquared = dx * dx + dy * dy;
-                
+
                 if (distSquared <= obstacleRadius * obstacleRadius) {
                   layout[y][x] = 0; // Wall (obstacle)
                 }
@@ -1011,30 +1088,30 @@ export class EnhancedLevelGenerator {
           // Wall obstacle
           const wallLength = 4 + Math.floor(this.random() * 8);
           const wallWidth = 1 + Math.floor(this.random() * 2);
-          
+
           // Random position and orientation
           const angle = this.random() * Math.PI * 2;
           const distance = Math.min(Math.floor(width * 0.3), Math.floor(height * 0.3));
-          
+
           const wallCenterX = centerX + Math.floor(Math.cos(angle) * distance);
           const wallCenterY = centerY + Math.floor(Math.sin(angle) * distance);
-          
+
           // Create wall along a random orientation
           const wallAngle = this.random() * Math.PI * 2;
-          
+
           for (let step = -Math.floor(wallLength / 2); step <= Math.floor(wallLength / 2); step++) {
             const wallX = wallCenterX + Math.floor(Math.cos(wallAngle) * step);
             const wallY = wallCenterY + Math.floor(Math.sin(wallAngle) * step);
-            
+
             // Create wall width
             for (let w = -Math.floor(wallWidth / 2); w <= Math.floor(wallWidth / 2); w++) {
               // Calculate perpendicular offset
               const offsetX = Math.floor(-Math.sin(wallAngle) * w);
               const offsetY = Math.floor(Math.cos(wallAngle) * w);
-              
+
               const x = wallX + offsetX;
               const y = wallY + offsetY;
-              
+
               if (y > 0 && y < height - 1 && x > 0 && x < width - 1) {
                 layout[y][x] = 0; // Wall (obstacle)
               }
@@ -1043,10 +1120,10 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     // Add a special platform in the center for the boss
     const platformRadius = 2 + Math.floor(this.random() * 3);
-    
+
     for (let y = centerY - platformRadius; y <= centerY + platformRadius; y++) {
       for (let x = centerX - platformRadius; x <= centerX + platformRadius; x++) {
         if (y > 0 && y < height - 1 && x > 0 && x < width - 1) {
@@ -1056,14 +1133,14 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     // Ensure door areas are clear
     this.addDoorAreas(layout, width, height);
-    
+
     // Make sure there's a clear path from doors to center
     this.addWalkablePaths(layout, width, height);
   }
-  
+
   /**
    * Generate a treasure vault room
    */
@@ -1071,21 +1148,21 @@ export class EnhancedLevelGenerator {
     // Treasure rooms tend to be more regular and protected
     const centerX = Math.floor(width / 2);
     const centerY = Math.floor(height / 2);
-    
+
     // Choose between a few treasure vault layouts
     const vaultType = Math.floor(this.random() * 3); // 0, 1, or 2
-    
+
     switch (vaultType) {
       case 0: // Circular vault
         // Create circular room
         const radius = Math.min(Math.floor(width * 0.4), Math.floor(height * 0.4));
-        
+
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
             const dx = x - centerX;
             const dy = y - centerY;
             const distSquared = dx * dx + dy * dy;
-            
+
             if (distSquared <= radius * radius) {
               layout[y][x] = 1; // Floor
             } else {
@@ -1093,58 +1170,58 @@ export class EnhancedLevelGenerator {
             }
           }
         }
-        
+
         // Add pedestals for treasures
         const pedestalCount = 1 + Math.floor(this.random() * 3); // 1-3 pedestals
-        
+
         for (let i = 0; i < pedestalCount; i++) {
           const angle = (i / pedestalCount) * Math.PI * 2;
           const distance = radius * 0.5; // Pedestals positioned closer to center
-          
+
           const pedestalX = centerX + Math.floor(Math.cos(angle) * distance);
           const pedestalY = centerY + Math.floor(Math.sin(angle) * distance);
-          
+
           // Mark pedestal location (3 = pedestal)
           // In a full implementation, this would be interpreted by the renderer
           layout[pedestalY][pedestalX] = 3;
         }
         break;
-        
+
       case 1: // Rectangular vault with columns
         // Create rectangular room
         const padding = 2;
-        
+
         for (let y = padding; y < height - padding; y++) {
           for (let x = padding; x < width - padding; x++) {
             layout[y][x] = 1; // Floor
           }
         }
-        
+
         // Add columns around perimeter
         const columnSpacing = 4; // Spacing between columns
-        
+
         // Add corners
         layout[padding][padding] = 0; // Top-left
         layout[padding][width - padding - 1] = 0; // Top-right
         layout[height - padding - 1][padding] = 0; // Bottom-left
         layout[height - padding - 1][width - padding - 1] = 0; // Bottom-right
-        
+
         // Add columns along top and bottom
         for (let x = padding + columnSpacing; x < width - padding - 1; x += columnSpacing) {
           layout[padding][x] = 0; // Top wall
           layout[height - padding - 1][x] = 0; // Bottom wall
         }
-        
+
         // Add columns along left and right
         for (let y = padding + columnSpacing; y < height - padding - 1; y += columnSpacing) {
           layout[y][padding] = 0; // Left wall
           layout[y][width - padding - 1] = 0; // Right wall
         }
-        
+
         // Add central treasure pedestal
         layout[centerY][centerX] = 3; // Pedestal marker
         break;
-        
+
       case 2: // Partitioned vault
         // First, fill with floor
         for (let y = 1; y < height - 1; y++) {
@@ -1152,57 +1229,57 @@ export class EnhancedLevelGenerator {
             layout[y][x] = 1; // Floor
           }
         }
-        
+
         // Add outer walls
         for (let y = 0; y < height; y++) {
           layout[y][0] = 0; // Left wall
           layout[y][width - 1] = 0; // Right wall
         }
-        
+
         for (let x = 0; x < width; x++) {
           layout[0][x] = 0; // Top wall
           layout[height - 1][x] = 0; // Bottom wall
         }
-        
+
         // Create partitions
         const partitionCount = 1 + Math.floor(this.random() * 2); // 1-2 partitions
-        
+
         for (let i = 0; i < partitionCount; i++) {
           const isHorizontal = this.random() < 0.5;
-          
+
           if (isHorizontal) {
             // Horizontal partition
             const partitionY = Math.floor(height * (0.3 + this.random() * 0.4)); // 30-70% of height
-            
+
             for (let x = 1; x < width - 1; x++) {
               layout[partitionY][x] = 0; // Wall
             }
-            
+
             // Add door in partition
             const doorX = Math.floor(width * (0.3 + this.random() * 0.4)); // 30-70% of width
             layout[partitionY][doorX] = 1; // Door (floor)
           } else {
             // Vertical partition
             const partitionX = Math.floor(width * (0.3 + this.random() * 0.4)); // 30-70% of width
-            
+
             for (let y = 1; y < height - 1; y++) {
               layout[y][partitionX] = 0; // Wall
             }
-            
+
             // Add door in partition
             const doorY = Math.floor(height * (0.3 + this.random() * 0.4)); // 30-70% of height
             layout[doorY][partitionX] = 1; // Door (floor)
           }
         }
-        
+
         // Add treasure pedestals in different chambers
         const chambers = partitionCount + 1;
-        
+
         for (let i = 0; i < chambers; i++) {
           // Random position in each chamber (simplified)
           const chamberX = Math.floor(width * (0.2 + this.random() * 0.6)); // 20-80% of width
           const chamberY = Math.floor(height * (0.2 + this.random() * 0.6)); // 20-80% of height
-          
+
           // Ensure position is on floor
           if (layout[chamberY][chamberX] === 1) {
             layout[chamberY][chamberX] = 3; // Pedestal marker
@@ -1210,18 +1287,18 @@ export class EnhancedLevelGenerator {
         }
         break;
     }
-    
+
     // Ensure door areas are clear
     this.addDoorAreas(layout, width, height);
   }
-  
+
   /**
    * Generate a shop room
    */
   private generateShopRoom(layout: number[][], width: number, height: number): void {
     // Shop rooms are typically more organized and rectangular
     const padding = 2;
-    
+
     // Create rectangular room
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -1232,30 +1309,30 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     // Add shop counters (walls that separate shopkeeper from customer)
     const hasCounter = this.random() < 0.8; // 80% chance of having a counter
-    
+
     if (hasCounter) {
       // Choose counter position: top, bottom, left, or right
       const counterPosition = Math.floor(this.random() * 4); // 0=top, 1=right, 2=bottom, 3=left
       let counterX1, counterY1, counterX2, counterY2;
-      
+
       switch (counterPosition) {
         case 0: // Top
           counterY1 = counterY2 = Math.floor(height * 0.3);
           counterX1 = Math.floor(width * 0.3);
           counterX2 = Math.floor(width * 0.7);
-          
+
           // Add counters (mark as wall)
           for (let x = counterX1; x <= counterX2; x++) {
             layout[counterY1][x] = 0; // Wall
           }
-          
+
           // Add counter opening
           const openingPos = Math.floor(counterX1 + (counterX2 - counterX1) * 0.5);
           layout[counterY1][openingPos] = 1; // Floor (opening)
-          
+
           // Mark shop items (4 = shop item)
           for (let y = padding; y < counterY1; y += 2) {
             for (let x = padding + 2; x < width - padding - 2; x += 4) {
@@ -1263,21 +1340,21 @@ export class EnhancedLevelGenerator {
             }
           }
           break;
-          
+
         case 1: // Right
           counterX1 = counterX2 = Math.floor(width * 0.7);
           counterY1 = Math.floor(height * 0.3);
           counterY2 = Math.floor(height * 0.7);
-          
+
           // Add counters
           for (let y = counterY1; y <= counterY2; y++) {
             layout[y][counterX1] = 0; // Wall
           }
-          
+
           // Add counter opening
           const openingY = Math.floor(counterY1 + (counterY2 - counterY1) * 0.5);
           layout[openingY][counterX1] = 1; // Floor (opening)
-          
+
           // Mark shop items
           for (let y = padding + 2; y < height - padding - 2; y += 4) {
             for (let x = counterX1 + 1; x < width - padding; x += 2) {
@@ -1285,21 +1362,21 @@ export class EnhancedLevelGenerator {
             }
           }
           break;
-          
+
         case 2: // Bottom
           counterY1 = counterY2 = Math.floor(height * 0.7);
           counterX1 = Math.floor(width * 0.3);
           counterX2 = Math.floor(width * 0.7);
-          
+
           // Add counters
           for (let x = counterX1; x <= counterX2; x++) {
             layout[counterY1][x] = 0; // Wall
           }
-          
+
           // Add counter opening
           const openingX = Math.floor(counterX1 + (counterX2 - counterX1) * 0.5);
           layout[counterY1][openingX] = 1; // Floor (opening)
-          
+
           // Mark shop items
           for (let y = counterY1 + 1; y < height - padding; y += 2) {
             for (let x = padding + 2; x < width - padding - 2; x += 4) {
@@ -1307,21 +1384,21 @@ export class EnhancedLevelGenerator {
             }
           }
           break;
-          
+
         case 3: // Left
           counterX1 = counterX2 = Math.floor(width * 0.3);
           counterY1 = Math.floor(height * 0.3);
           counterY2 = Math.floor(height * 0.7);
-          
+
           // Add counters
           for (let y = counterY1; y <= counterY2; y++) {
             layout[y][counterX1] = 0; // Wall
           }
-          
+
           // Add counter opening
           const openingYPos = Math.floor(counterY1 + (counterY2 - counterY1) * 0.5);
           layout[openingYPos][counterX1] = 1; // Floor (opening)
-          
+
           // Mark shop items
           for (let y = padding + 2; y < height - padding - 2; y += 4) {
             for (let x = padding; x < counterX1; x += 2) {
@@ -1332,32 +1409,32 @@ export class EnhancedLevelGenerator {
       }
     } else {
       // No counter, just place shop items around the edges
-      
+
       // Top edge
       for (let x = Math.floor(width * 0.25); x <= Math.floor(width * 0.75); x += 3) {
         layout[padding][x] = 4; // Shop item marker
       }
-      
+
       // Bottom edge
       for (let x = Math.floor(width * 0.25); x <= Math.floor(width * 0.75); x += 3) {
         layout[height - padding - 1][x] = 4; // Shop item marker
       }
-      
+
       // Left edge
       for (let y = Math.floor(height * 0.25); y <= Math.floor(height * 0.75); y += 3) {
         layout[y][padding] = 4; // Shop item marker
       }
-      
+
       // Right edge
       for (let y = Math.floor(height * 0.25); y <= Math.floor(height * 0.75); y += 3) {
         layout[y][width - padding - 1] = 4; // Shop item marker
       }
     }
-    
+
     // Ensure door areas are clear
     this.addDoorAreas(layout, width, height);
   }
-  
+
   /**
    * Ensure the door areas are clear for room connections
    */
@@ -1371,7 +1448,7 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     // South door (bottom)
     const southX = Math.floor(width / 2);
     for (let y = height - 2; y < height; y++) {
@@ -1381,7 +1458,7 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     // East door (right)
     const eastY = Math.floor(height / 2);
     for (let x = width - 2; x < width; x++) {
@@ -1391,7 +1468,7 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     // West door (left)
     const westY = Math.floor(height / 2);
     for (let x = 0; x < 2; x++) {
@@ -1402,14 +1479,14 @@ export class EnhancedLevelGenerator {
       }
     }
   }
-  
+
   /**
    * Add walkable paths from center to edges
    */
   private addWalkablePaths(layout: number[][], width: number, height: number): void {
     const centerX = Math.floor(width / 2);
     const centerY = Math.floor(height / 2);
-    
+
     // Create paths from center to each door
     // North door
     for (let y = 1; y <= centerY; y++) {
@@ -1417,21 +1494,21 @@ export class EnhancedLevelGenerator {
         layout[y][x] = 1; // Floor
       }
     }
-    
+
     // South door
     for (let y = centerY; y < height - 1; y++) {
       for (let x = centerX - 1; x <= centerX + 1; x++) {
         layout[y][x] = 1; // Floor
       }
     }
-    
+
     // East door
     for (let x = centerX; x < width - 1; x++) {
       for (let y = centerY - 1; y <= centerY + 1; y++) {
         layout[y][x] = 1; // Floor
       }
     }
-    
+
     // West door
     for (let x = 1; x <= centerX; x++) {
       for (let y = centerY - 1; y <= centerY + 1; y++) {
@@ -1439,7 +1516,7 @@ export class EnhancedLevelGenerator {
       }
     }
   }
-  
+
   /**
    * Add doors to room layout
    */
@@ -1447,17 +1524,17 @@ export class EnhancedLevelGenerator {
     // Mark door positions (5 = door)
     // North door
     layout[0][Math.floor(width / 2)] = 5;
-    
+
     // South door
     layout[height - 1][Math.floor(width / 2)] = 5;
-    
+
     // East door
     layout[Math.floor(height / 2)][width - 1] = 5;
-    
+
     // West door
     layout[Math.floor(height / 2)][0] = 5;
   }
-  
+
   /**
    * Add environmental details to room
    */
@@ -1485,7 +1562,7 @@ export class EnhancedLevelGenerator {
         }
     }
   }
-  
+
   /**
    * Add hazards to room (traps, spikes, etc.)
    */
@@ -1498,24 +1575,24 @@ export class EnhancedLevelGenerator {
           if (layout[y][x] === 1) {
             // Check that it's not near a door or special marker
             const isNearSpecial = this.checkNearbyTiles(layout, x, y, [3, 4, 5]);
-            const isNearCenter = Math.abs(x - width/2) < 3 && Math.abs(y - height/2) < 3;
-            
+            const isNearCenter = Math.abs(x - width / 2) < 3 && Math.abs(y - height / 2) < 3;
+
             if (!isNearSpecial && !isNearCenter) {
               validPositions.push([x, y]);
             }
           }
         }
       }
-      
+
       if (validPositions.length > 0) {
         const [x, y] = validPositions[Math.floor(this.random() * validPositions.length)];
-        
+
         // Mark hazard (6 = hazard)
         layout[y][x] = 6;
       }
     }
   }
-  
+
   /**
    * Add decorations to room (statues, plants, etc.)
    */
@@ -1528,24 +1605,24 @@ export class EnhancedLevelGenerator {
           if (layout[y][x] === 1) {
             // Check that it's not near a door or special marker
             const isNearSpecial = this.checkNearbyTiles(layout, x, y, [3, 4, 5, 6]);
-            const isNearCenter = Math.abs(x - width/2) < 3 && Math.abs(y - height/2) < 3;
-            
+            const isNearCenter = Math.abs(x - width / 2) < 3 && Math.abs(y - height / 2) < 3;
+
             if (!isNearSpecial && !isNearCenter) {
               validPositions.push([x, y]);
             }
           }
         }
       }
-      
+
       if (validPositions.length > 0) {
         const [x, y] = validPositions[Math.floor(this.random() * validPositions.length)];
-        
+
         // Mark decoration (7 = decoration)
         layout[y][x] = 7;
       }
     }
   }
-  
+
   /**
    * Check if any nearby tiles have specified values
    */
@@ -1554,7 +1631,7 @@ export class EnhancedLevelGenerator {
       for (let dx = -1; dx <= 1; dx++) {
         const nx = x + dx;
         const ny = y + dy;
-        
+
         if (nx >= 0 && nx < layout[0].length && ny >= 0 && ny < layout.length) {
           if (values.includes(layout[ny][nx])) {
             return true;
@@ -1562,10 +1639,10 @@ export class EnhancedLevelGenerator {
         }
       }
     }
-    
+
     return false;
   }
-  
+
   /**
    * Connect the rooms in the level
    */
@@ -1576,93 +1653,93 @@ export class EnhancedLevelGenerator {
       rooms[1].connections.push(rooms[0].id);
       return;
     }
-    
+
     // For levels with more than 2 rooms, create a more complex structure
-    
+
     // Ensure main path first - critical path from entrance to boss
     const entranceRoom = rooms.find(room => room.isEntrance)!;
     const bossRoom = rooms.find(room => room.type === 'boss')!;
-    
+
     // Identify non-entrance, non-boss rooms
     const midRooms = rooms.filter(room => !room.isEntrance && room.type !== 'boss');
-    
+
     // Shuffle midRooms for more randomness
     this.shuffleArray(midRooms);
-    
+
     // Create main path
     const mainPathLength = Math.min(this.options.mainPath, rooms.length - 1);
     const mainPathRooms = [entranceRoom];
-    
+
     // Choose rooms for main path, preferring 'normal' and 'elite' over 'treasure'
     const sortedForMainPath = [...midRooms].sort((a, b) => {
       if (a.type === 'treasure' && b.type !== 'treasure') return 1;
       if (a.type !== 'treasure' && b.type === 'treasure') return -1;
       return 0;
     });
-    
+
     // Add rooms to main path
     const roomsToAdd = Math.min(mainPathLength - 1, sortedForMainPath.length);
     for (let i = 0; i < roomsToAdd; i++) {
       mainPathRooms.push(sortedForMainPath[i]);
     }
-    
+
     // Add boss room at the end
     mainPathRooms.push(bossRoom);
-    
+
     // Connect the rooms on the main path
     for (let i = 0; i < mainPathRooms.length - 1; i++) {
       mainPathRooms[i].connections.push(mainPathRooms[i + 1].id);
       mainPathRooms[i + 1].connections.push(mainPathRooms[i].id);
     }
-    
+
     // Add branch connections - remaining rooms that aren't on the main path
     const unconnectedRooms = rooms.filter(
       room => !mainPathRooms.includes(room) || room === entranceRoom || room === bossRoom
     );
-    
+
     unconnectedRooms.forEach(room => {
       if (room === entranceRoom || room === bossRoom) return; // Skip entrance and boss
-      
+
       // Choose a random room from the main path to connect to
       // Favor connecting to early rooms for treasure rooms
       let connectToIndex: number;
-      
+
       if (room.type === 'treasure') {
         // Connect treasure rooms to earlier part of main path
         connectToIndex = Math.floor(this.random() * Math.ceil(mainPathRooms.length / 2));
       } else {
         connectToIndex = Math.floor(this.random() * mainPathRooms.length);
       }
-      
+
       const connectToRoom = mainPathRooms[connectToIndex];
-      
+
       // Connect the rooms both ways
       room.connections.push(connectToRoom.id);
       connectToRoom.connections.push(room.id);
     });
-    
+
     // Add some additional connections for more path options
     if (this.options.branchingFactor > 0) {
       const maxExtraConnections = Math.floor(rooms.length * this.options.branchingFactor);
       const actualExtraConnections = Math.floor(this.random() * (maxExtraConnections + 1));
-      
+
       for (let i = 0; i < actualExtraConnections; i++) {
         // Choose two different random rooms that aren't already fully connected
         const eligibleRooms = rooms.filter(room => room.connections.length < 4);
-        
+
         if (eligibleRooms.length < 2) break; // Not enough eligible rooms
-        
+
         const randomIndex1 = Math.floor(this.random() * eligibleRooms.length);
         let randomIndex2 = Math.floor(this.random() * eligibleRooms.length);
-        
+
         // Ensure we get two different rooms
         while (randomIndex1 === randomIndex2) {
           randomIndex2 = Math.floor(this.random() * eligibleRooms.length);
         }
-        
+
         const room1 = eligibleRooms[randomIndex1];
         const room2 = eligibleRooms[randomIndex2];
-        
+
         // Check if they're already connected
         if (!room1.connections.includes(room2.id) && !room2.connections.includes(room1.id)) {
           // Connect the rooms
@@ -1672,7 +1749,7 @@ export class EnhancedLevelGenerator {
       }
     }
   }
-  
+
   /**
    * Shuffle array in-place
    */
@@ -1682,21 +1759,21 @@ export class EnhancedLevelGenerator {
       [array[i], array[j]] = [array[j], array[i]];
     }
   }
-  
+
   /**
    * Populate enemies in the level
    */
   private populateEnemies(rooms: Room[]): Enemy[] {
     const enemies: Enemy[] = [];
-    
+
     rooms.forEach(room => {
       // Skip enemy generation for treasure rooms and entrance
       if (room.type === 'treasure' || room.isEntrance) return;
-      
+
       // Determine number of enemies based on room type and difficulty
       let enemyCount = 0;
       let includeElite = false;
-      
+
       switch (room.type) {
         case 'boss':
           enemyCount = 1; // Just the boss
@@ -1709,18 +1786,18 @@ export class EnhancedLevelGenerator {
           enemyCount = Math.floor(1 + this.options.difficulty);
           includeElite = this.random() < 0.2; // 20% chance of an elite in normal rooms
       }
-      
+
       // Generate enemy positions
       for (let i = 0; i < enemyCount; i++) {
         const position = this.findValidEnemyPosition(room);
-        
+
         // Skip if no valid position found
         if (!position) continue;
-        
+
         // Determine enemy type
         let type: string;
         let behavior: string;
-        
+
         if (room.type === 'boss') {
           type = 'Boss';
           behavior = 'boss';
@@ -1731,13 +1808,13 @@ export class EnhancedLevelGenerator {
           type = 'Normal';
           behavior = this.chooseEnemyBehavior('normal');
         }
-        
+
         // Set health based on type
-        const health = 
+        const health =
           type === 'Boss' ? 1000 :
-          type === 'Elite' ? 200 :
-          100;
-        
+            type === 'Elite' ? 200 :
+              100;
+
         // Create enemy object
         const enemy: Enemy = {
           id: `enemy-${Date.now()}-${Math.random()}`,
@@ -1759,16 +1836,16 @@ export class EnhancedLevelGenerator {
           },
           dropTable: { equipment: [], resources: [] }
         };
-        
+
         // Add to enemies array and room
         enemies.push(enemy);
         room.enemies.push(enemy);
       }
     });
-    
+
     return enemies;
   }
-  
+
   /**
    * Choose an enemy behavior type
    */
@@ -1781,48 +1858,48 @@ export class EnhancedLevelGenerator {
       return normalBehaviors[Math.floor(this.random() * normalBehaviors.length)];
     }
   }
-  
+
   /**
    * Find a valid position for an enemy
    */
   private findValidEnemyPosition(room: Room): Vector3 | null {
     // Get room dimensions
     const { width, height } = room.size;
-    
+
     // Try to find a valid position
     const maxAttempts = 50;
-    
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const x = 1 + Math.floor(this.random() * (width - 2));
       const y = 1;
       const z = 1 + Math.floor(this.random() * (height - 2));
-      
+
       // Check if position is valid (floor tile, not near doors)
       if (this.isValidEnemyPosition(room, x, z)) {
         return { x, y, z };
       }
     }
-    
+
     // Fallback - return center position
     return { x: Math.floor(width / 2), y: 1, z: Math.floor(height / 2) };
   }
-  
+
   /**
    * Check if a position is valid for an enemy
    */
   private isValidEnemyPosition(room: Room, x: number, z: number): boolean {
     const { layout, size } = room;
-    
+
     // Check bounds
     if (x < 0 || x >= size.width || z < 0 || z >= size.height) {
       return false;
     }
-    
+
     // Check if position is on a floor tile
     if (layout[z][x] !== 1) {
       return false;
     }
-    
+
     // Check if position is not near a door (at least 3 tiles away)
     const doorPositions = [
       [Math.floor(size.width / 2), 0], // North door
@@ -1830,39 +1907,39 @@ export class EnhancedLevelGenerator {
       [0, Math.floor(size.height / 2)], // West door
       [size.width - 1, Math.floor(size.height / 2)] // East door
     ];
-    
+
     for (const [doorX, doorZ] of doorPositions) {
       const dx = Math.abs(x - doorX);
       const dz = Math.abs(z - doorZ);
-      
+
       if (dx * dx + dz * dz < 9) { // Distance squared < 3^2
         return false;
       }
     }
-    
+
     // Check if position is not too close to other enemies
     for (const enemy of room.enemies) {
       const dx = Math.abs(x - enemy.position.x);
       const dz = Math.abs(z - enemy.position.z);
-      
+
       if (dx * dx + dz * dz < 9) { // Keep enemies at least 3 tiles apart
         return false;
       }
     }
-    
+
     return true;
   }
-  
+
   /**
    * Place treasures in the level
    */
   private placeTreasures(rooms: Room[]): Treasure[] {
     const treasures: Treasure[] = [];
-    
+
     rooms.forEach(room => {
       // Determine how many treasures based on room type
       let treasureCount = 0;
-      
+
       switch (room.type) {
         case 'treasure':
           treasureCount = 1 + Math.floor(this.random() * 2); // 1-2 treasures
@@ -1876,52 +1953,52 @@ export class EnhancedLevelGenerator {
         default:
           treasureCount = this.random() < 0.2 ? 1 : 0; // 20% chance of 1 treasure
       }
-      
+
       // Generate treasures
       for (let i = 0; i < treasureCount; i++) {
         // Determine rarity based on room type and randomness
         const rarityRoll = this.random();
         let rarity: 'common' | 'rare' | 'epic' | 'legendary';
-        
+
         if (room.type === 'boss') {
           // Boss drops are better
           rarity = rarityRoll < 0.5 ? 'epic' : 'legendary';
         } else if (room.type === 'treasure') {
           // Treasure rooms have better loot
-          rarity = 
+          rarity =
             rarityRoll < this.options.rewards.commonChance ? 'common' :
-            rarityRoll < this.options.rewards.commonChance + this.options.rewards.rareChance ? 'rare' :
-            rarityRoll < this.options.rewards.commonChance + this.options.rewards.rareChance + this.options.rewards.epicChance ? 'epic' :
-            'legendary';
+              rarityRoll < this.options.rewards.commonChance + this.options.rewards.rareChance ? 'rare' :
+                rarityRoll < this.options.rewards.commonChance + this.options.rewards.rareChance + this.options.rewards.epicChance ? 'epic' :
+                  'legendary';
         } else if (room.type === 'elite') {
           // Elite rooms have better loot
-          rarity = 
+          rarity =
             rarityRoll < this.options.rewards.commonChance / 2 ? 'common' :
-            rarityRoll < (this.options.rewards.commonChance / 2) + this.options.rewards.rareChance ? 'rare' :
-            rarityRoll < (this.options.rewards.commonChance / 2) + this.options.rewards.rareChance + this.options.rewards.epicChance * 1.5 ? 'epic' :
-            'legendary';
+              rarityRoll < (this.options.rewards.commonChance / 2) + this.options.rewards.rareChance ? 'rare' :
+                rarityRoll < (this.options.rewards.commonChance / 2) + this.options.rewards.rareChance + this.options.rewards.epicChance * 1.5 ? 'epic' :
+                  'legendary';
         } else {
           // Normal rooms have normal loot distribution
-          rarity = 
+          rarity =
             rarityRoll < this.options.rewards.commonChance ? 'common' :
-            rarityRoll < this.options.rewards.commonChance + this.options.rewards.rareChance ? 'rare' :
-            rarityRoll < this.options.rewards.commonChance + this.options.rewards.rareChance + this.options.rewards.epicChance ? 'epic' :
-            'legendary';
+              rarityRoll < this.options.rewards.commonChance + this.options.rewards.rareChance ? 'rare' :
+                rarityRoll < this.options.rewards.commonChance + this.options.rewards.rareChance + this.options.rewards.epicChance ? 'epic' :
+                  'legendary';
         }
-        
+
         // Determine treasure type
         const treasureType: 'equipment' | 'resource' | 'ability' = this.random() < 0.7 ? 'equipment' : 'resource';
-        
+
         // Create treasure content
         let content: Equipment | string | Ability;
-        
+
         if (treasureType === 'equipment') {
           content = this.generateEquipment(rarity);
         } else {
           // Resource is just a string describing the resource
           content = `${rarity} resource`;
         }
-        
+
         // Create treasure object
         const treasure: Treasure = {
           id: `treasure-${Date.now()}-${Math.random()}`,
@@ -1929,16 +2006,16 @@ export class EnhancedLevelGenerator {
           rarity,
           content
         };
-        
+
         // Add to treasures array and room
         treasures.push(treasure);
         room.treasures.push(treasure);
       }
     });
-    
+
     return treasures;
   }
-  
+
   /**
    * Generate equipment based on rarity
    */
@@ -1946,16 +2023,16 @@ export class EnhancedLevelGenerator {
     // Equipment types
     const types: ('weapon' | 'armor' | 'accessory')[] = ['weapon', 'armor', 'accessory'];
     const type = types[Math.floor(this.random() * types.length)];
-    
+
     // Scale stats based on rarity
-    const rarityMultiplier = 
+    const rarityMultiplier =
       rarity === 'legendary' ? 3 :
-      rarity === 'epic' ? 2 :
-      rarity === 'rare' ? 1.5 : 1;
-    
+        rarity === 'epic' ? 2 :
+          rarity === 'rare' ? 1.5 : 1;
+
     // Generate equipment name
     const name = this.generateEquipmentName(type, rarity);
-    
+
     return {
       id: `equip-${Date.now()}-${Math.random()}`,
       name,
@@ -1971,7 +2048,7 @@ export class EnhancedLevelGenerator {
       }
     };
   }
-  
+
   /**
    * Generate a name for equipment
    */
@@ -1983,14 +2060,14 @@ export class EnhancedLevelGenerator {
       epic: ['Exquisite', 'Magnificent', 'Radiant', 'Mighty'],
       legendary: ['Legendary', 'Ancient', 'Divine', 'Mythical']
     };
-    
+
     // Items based on type
     const items: Record<string, string[]> = {
       weapon: ['Sword', 'Axe', 'Spear', 'Dagger', 'Hammer', 'Staff'],
       armor: ['Armor', 'Breastplate', 'Helmet', 'Gauntlets', 'Boots', 'Shield'],
       accessory: ['Ring', 'Amulet', 'Charm', 'Talisman', 'Bracelet', 'Belt']
     };
-    
+
     // Suffixes (optional)
     const suffixes: string[] = [
       'of Power', 'of Might', 'of the Titan', 'of the Whale',
@@ -1998,20 +2075,20 @@ export class EnhancedLevelGenerator {
       'of Swiftness', 'of Protection', 'of Warding', 'of Vitality',
       'of the Void', 'of Flames', 'of Frost', 'of Thunder'
     ];
-    
+
     // Build name
     const prefix = prefixes[rarity][Math.floor(this.random() * prefixes[rarity].length)];
     const item = items[type][Math.floor(this.random() * items[type].length)];
-    
+
     // Add suffix for rare+ items
     if (rarity !== 'common' && this.random() < 0.7) {
       const suffix = suffixes[Math.floor(this.random() * suffixes.length)];
       return `${prefix} ${item} ${suffix}`;
     }
-    
+
     return `${prefix} ${item}`;
   }
-  
+
   /**
    * Generate boss enemy for boss room
    */
@@ -2024,7 +2101,7 @@ export class EnhancedLevelGenerator {
       y: 1,
       z: Math.floor(bossRoom.size.height / 2)
     };
-    
+
     // Create boss object
     const boss: Enemy = {
       id: `boss-${Date.now()}`,
@@ -2074,10 +2151,10 @@ export class EnhancedLevelGenerator {
         resources: []
       }
     };
-    
+
     return boss;
   }
-  
+
   /**
    * Generate a boss name
    */
@@ -2086,20 +2163,20 @@ export class EnhancedLevelGenerator {
       'Lord', 'Master', 'Overlord', 'Guardian', 'Keeper',
       'Warden', 'King', 'Queen', 'Prince', 'Duke', 'Baron'
     ];
-    
+
     const names = [
       'Morbius', 'Thanatos', 'Azrael', 'Zephyr', 'Kron',
       'Vex', 'Malgrim', 'Noctis', 'Skarr', 'Drakath', 'Morgoth'
     ];
-    
+
     const epithets = [
       'the Eternal', 'the Undying', 'the Dreadful', 'the Merciless',
       'the Nefarious', 'the Malevolent', 'the Corrupted', 'the Fallen',
       'of Shadows', 'of Despair', 'of Ruin', 'of Madness'
     ];
-    
+
     const pattern = Math.floor(this.random() * 3);
-    
+
     switch (pattern) {
       case 0:
         return `${titles[Math.floor(this.random() * titles.length)]} ${names[Math.floor(this.random() * names.length)]}`;

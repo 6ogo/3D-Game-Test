@@ -44,92 +44,93 @@ export class LevelManager {
     }
     return LevelManager.instance;
   }
-  private createOptimizedRoomGeometry(roomData: Room): THREE.Group {
-    const roomObject = new THREE.Group();
-    roomObject.name = `room_${roomData.id}`;
+  // Commented out as currently unused - will be implemented for optimization in the future
+  // private createOptimizedRoomGeometry(roomData: Room): THREE.Group {
+  //   const roomObject = new THREE.Group();
+  //   roomObject.name = `room_${roomData.id}`;
 
-    // Get layout dimensions
-    const width = roomData.layout![0].length;
-    const height = roomData.layout!.length;
+  //   // Get layout dimensions
+  //   const width = roomData.layout![0].length;
+  //   const height = roomData.layout!.length;
 
-    // Count tiles for allocation
-    let floorCount = 0;
-    let wallCount = 0;
+  //   // Count tiles for allocation
+  //   let floorCount = 0;
+  //   let wallCount = 0;
 
-    roomData.layout!.forEach((row) => {
-      row.forEach((cell) => {
-        if (cell === 1) floorCount++;
-        else wallCount++;
-      });
-    });
+  //   roomData.layout!.forEach((row) => {
+  //     row.forEach((cell) => {
+  //       if (cell === 1) floorCount++;
+  //       else wallCount++;
+  //     });
+  //   });
 
-    // Create floor geometry once
-    const floorGeometry = new THREE.BoxGeometry(1, 0.1, 1);
-    const floorMaterial = this.materials.get(
-      "floor_material"
-    ) as THREE.MeshStandardMaterial;
+  //   // Create floor geometry once
+  //   const floorGeometry = new THREE.BoxGeometry(1, 0.1, 1);
+  //   const floorMaterial = this.materials.get(
+  //     "floor_material"
+  //   ) as THREE.MeshStandardMaterial;
 
-    // Create instanced mesh for floors
-    const floorInstances = new THREE.InstancedMesh(
-      floorGeometry,
-      floorMaterial,
-      floorCount
-    );
-    floorInstances.receiveShadow = true;
+  //   // Create instanced mesh for floors
+  //   const floorInstances = new THREE.InstancedMesh(
+  //     floorGeometry,
+  //     floorMaterial,
+  //     floorCount
+  //   );
+  //   floorInstances.receiveShadow = true;
 
-    // Create wall geometry once
-    const wallGeometry = new THREE.BoxGeometry(1, 1, 1);
-    const wallMaterial = this.materials.get(
-      "wall_material"
-    ) as THREE.MeshStandardMaterial;
+  //   // Create wall geometry once
+  //   const wallGeometry = new THREE.BoxGeometry(1, 1, 1);
+  //   const wallMaterial = this.materials.get(
+  //     "wall_material"
+  //   ) as THREE.MeshStandardMaterial;
 
-    // Create instanced mesh for walls
-    const wallInstances = new THREE.InstancedMesh(
-      wallGeometry,
-      wallMaterial,
-      wallCount
-    );
-    wallInstances.castShadow = true;
-    wallInstances.receiveShadow = true;
+  //   // Create instanced mesh for walls
+  //   const wallInstances = new THREE.InstancedMesh(
+  //     wallGeometry,
+  //     wallMaterial,
+  //     wallCount
+  //   );
+  //   wallInstances.castShadow = true;
+  //   wallInstances.receiveShadow = true;
 
-    // Set instance transforms
-    const matrix = new THREE.Matrix4();
-    let floorIdx = 0;
-    let wallIdx = 0;
+  //   // Set instance transforms
+  //   const matrix = new THREE.Matrix4();
+  //   let floorIdx = 0;
+  //   let wallIdx = 0;
 
-    for (let z = 0; z < height; z++) {
-      for (let x = 0; x < width; x++) {
-        const cell = roomData.layout ? roomData.layout[z][x] : 0;
+  //   for (let z = 0; z < height; z++) {
+  //     for (let x = 0; x < width; x++) {
+  //       const cell = roomData.layout ? roomData.layout[z][x] : 0;
 
-        if (cell === 1) {
-          // Floor tile
-          matrix.setPosition(x, 0, z);
-          floorInstances.setMatrixAt(floorIdx, matrix);
-          floorIdx++;
-        } else {
-          // Wall tile
-          matrix.setPosition(x, 0.5, z);
-          wallInstances.setMatrixAt(wallIdx, matrix);
-          wallIdx++;
-        }
-      }
-    }
+  //       if (cell === 1) {
+  //         // Floor tile
+  //         matrix.setPosition(x, 0, z);
+  //         floorInstances.setMatrixAt(floorIdx, matrix);
+  //         floorIdx++;
+  //       } else {
+  //         // Wall tile
+  //         matrix.setPosition(x, 0.5, z);
+  //         wallInstances.setMatrixAt(wallIdx, matrix);
+  //         wallIdx++;
+  //       }
+  //     }
+  //   }
 
-    // Update matrices
-    floorInstances.instanceMatrix.needsUpdate = true;
-    wallInstances.instanceMatrix.needsUpdate = true;
+  //   // Update matrices
+  //   floorInstances.instanceMatrix.needsUpdate = true;
+  //   wallInstances.instanceMatrix.needsUpdate = true;
 
-    // Add instances to room
-    roomObject.add(floorInstances, wallInstances);
+  //   // Add instances to room
+  //   roomObject.add(floorInstances, wallInstances);
 
-    // Mark positions for frustum culling optimization
-    roomObject.userData.bounds = {
-      center: new THREE.Vector3(width / 2, 0.5, height / 2),
-      size: new THREE.Vector3(width, 1, height),
-    };
+  //   // Mark positions for frustum culling optimization
+  //   roomObject.userData.bounds = {
+  //     center: new THREE.Vector3(width / 2, 0.5, height / 2),
+  //     size: new THREE.Vector3(width, 1, height),
+  //   };
 
-    return roomObject;
-  }
+  //   return roomObject;
+  // }
 
   /**
    * Preloads common assets used across multiple rooms

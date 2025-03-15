@@ -109,7 +109,9 @@ interface GameStore extends GameState {
   // Methods for upgrades
   showUpgradeUI: () => void;
   selectBoon: (boonId: string) => void;
-  
+
+  previousRoomId: string | null;
+  setPreviousRoomId: (roomId: string | null) => void;
   // Methods for enemies
   removeEnemy: (roomId: string, enemyId: string) => void;
   
@@ -127,6 +129,8 @@ interface GameStore extends GameState {
   updateDamageDealt: (amount: number) => void;
   updateDamageTaken: (amount: number) => void;
   updateSoulsCollected: (amount: number) => void;
+
+
 }
 
 // Create and export the game store
@@ -148,16 +152,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gameSession: null,
   isUpgradeAvailable: false,
   availableBoons: [],
-
+  previousRoomId: null,
+  setPreviousRoomId: (roomId) => set({ previousRoomId: roomId }),
+  
   // Level management
   setCurrentLevel: (level) => set({ currentLevel: level }),
   
   setCurrentRoomId: (roomId) => {
     if (roomId && roomId !== get().currentRoomId) {
+      // Store the current room as previous before changing
+      set({ previousRoomId: get().currentRoomId });
+      
+      // Then set the new current room
+      set({ currentRoomId: roomId });
+      
       // Increment rooms cleared counter when changing rooms
       get().incrementRoomsCleared();
     }
-    set({ currentRoomId: roomId });
   },
   
   // Upgrade system
