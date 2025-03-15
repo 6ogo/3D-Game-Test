@@ -109,6 +109,43 @@ const CASTS = {
   }
 };
 
+const AttackAnimation = ({ getKeysFn }: { getKeysFn: () => any }) => {
+  const [isAttacking, setIsAttacking] = useState(false);
+  const stickRef = useRef<THREE.Mesh>(null);
+  
+  // Monitor attack key
+  useEffect(() => {
+    const checkAttack = () => {
+      const keys = getKeysFn();
+      if (keys.attack && !isAttacking) {
+        setIsAttacking(true);
+        setTimeout(() => setIsAttacking(false), 300); // Reset after 300ms
+      }
+    };
+    
+    const interval = setInterval(checkAttack, 50);
+    return () => clearInterval(interval);
+  }, [isAttacking, getKeysFn]);
+  
+  // Animate the stick
+  useFrame(() => {
+    if (stickRef.current && isAttacking) {
+      // Simple up/down animation
+      stickRef.current.rotation.x = Math.sin(Date.now() * 0.02) * 1.5;
+    } else if (stickRef.current) {
+      // Reset position when not attacking
+      stickRef.current.rotation.x = 0;
+    }
+  });
+  
+  return (
+    <mesh ref={stickRef} position={[0, 1, 0]}>
+      <boxGeometry args={[0.1, 1, 0.1]} />
+      <meshStandardMaterial color="#8B4513" />
+    </mesh>
+  );
+};
+
 export function Player() {
   const rigidBodyRef = useRef<any>(null);
   const meshRef = useRef<THREE.Group>(null);
@@ -181,13 +218,13 @@ export function Player() {
     };
   }, [keyboard]);
 
-  // Keyboard controls
+  // Keyboard controls - Inverted as per user's request
   const getKeys = () => {
     return {
-      forward: keyboard.pressed('KeyW') || keyboard.pressed('ArrowUp'),
-      backward: keyboard.pressed('KeyS') || keyboard.pressed('ArrowDown'),
-      left: keyboard.pressed('KeyA') || keyboard.pressed('ArrowLeft'),
-      right: keyboard.pressed('KeyD') || keyboard.pressed('ArrowRight'),
+      forward: keyboard.pressed('KeyS') || keyboard.pressed('ArrowDown'), // S looks up
+      backward: keyboard.pressed('KeyW') || keyboard.pressed('ArrowUp'), // W looks down
+      left: keyboard.pressed('KeyD') || keyboard.pressed('ArrowRight'), // D looks left
+      right: keyboard.pressed('KeyA') || keyboard.pressed('ArrowLeft'), // A looks right
       jump: keyboard.pressed('Space'),
       attack: keyboard.pressed('Mouse0') || keyboard.pressed('KeyF'),
       special: keyboard.pressed('KeyQ') || keyboard.pressed('KeyE'),
@@ -924,7 +961,7 @@ export function Player() {
   };
 
   return (
-    <RigidBody
+    <RigidBody 
       ref={rigidBodyRef}
       type="dynamic"
       position={[0, 1, 0]}
@@ -941,6 +978,9 @@ export function Player() {
           <capsuleGeometry args={[0.5, 1, 4, 8]} />
           <meshStandardMaterial color="#4a9eff" />
         </mesh>
+        
+        {/* Attack stick animation */}
+        <AttackAnimation getKeysFn={getKeys} />
       </group>
     </RigidBody>
   );

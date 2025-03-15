@@ -104,87 +104,109 @@ class AudioManagerClass {
   }
   
   playSound(id: SoundEffects, options: { rate?: number; volume?: number } = {}) {
-    // Check if sound exists before playing
-    if (this.isMuted || !this.sounds[id]) return;
-    
-    const sound = this.sounds[id];
-    
-    // Apply custom rate and volume if provided
-    if (options.rate) sound.rate(options.rate);
-    
-    // Play with custom volume or default
-    const finalVolume = options.volume !== undefined 
-      ? options.volume * this.sfxVolume 
-      : this.sfxVolume;
-      
-    sound.volume(finalVolume);
-    
-    // Check if sound can be played
-    try {
-      sound.play();
-    } catch (e) {
-      console.warn('Error playing sound:', e);
-    }
-  }
-  
-  // Play sound with random variations for more natural feel
-  playSoundWithVariation(id: SoundEffects, options: { rateVariation?: number; volumeVariation?: number } = {}) {
-    // Check if sound exists
-    if (!this.sounds[id]) return;
-    
-    const rateVar = options.rateVariation || 0.1;
-    const volumeVar = options.volumeVariation || 0.1;
-    
-    const rate = 1.0 + (Math.random() * 2 - 1) * rateVar;
-    const volume = 1.0 + (Math.random() * 2 - 1) * volumeVar;
-    
-    this.playSound(id, { rate, volume });
-  }
-  
-  playFootsteps(isMoving: boolean) {
-    if (!isMoving || this.isMuted || !this.sounds['footstep']) {
-      if (this.footstepTimeout) {
-        clearTimeout(this.footstepTimeout);
-        this.footstepTimeout = null;
-      }
+    // Skip if sound doesn't exist
+    if (!this.sounds[id]) {
+      console.warn(`Sound "${id}" not found or not loaded yet`);
       return;
     }
     
-    if (!this.footstepTimeout) {
-      const playStep = () => {
-        this.playSoundWithVariation('footstep', { rateVariation: 0.2, volumeVariation: 0.2 });
-        // Schedule next footstep (250-350ms for natural rhythm)
-        this.footstepTimeout = window.setTimeout(playStep, 250 + Math.random() * 100);
-      };
+    try {
+      const sound = this.sounds[id];
+      if (options.volume !== undefined) {
+        sound.volume(options.volume * this.sfxVolume);
+      }
+      if (options.rate !== undefined) {
+        sound.rate(options.rate);
+      }
+      sound.play();
+    } catch (error) {
+      console.error(`Error playing sound "${id}":`, error);
+    }
+  }
+  
+  playSoundWithVariation(id: SoundEffects, options: { rateVariation?: number; volumeVariation?: number } = {}) {
+    // Skip if sound doesn't exist
+    if (!this.sounds[id]) {
+      console.warn(`Sound "${id}" not found or not loaded yet`);
+      return;
+    }
+    
+    try {
+      const rateVar = options.rateVariation || 0.1;
+      const volumeVar = options.volumeVariation || 0.1;
       
-      playStep();
+      const randomRate = 1 + (Math.random() * 2 - 1) * rateVar;
+      const randomVolume = 1 + (Math.random() * 2 - 1) * volumeVar;
+      
+      this.playSound(id, {
+        rate: randomRate,
+        volume: randomVolume
+      });
+    } catch (error) {
+      console.error(`Error playing sound "${id}" with variation:`, error);
+    }
+  }
+  
+  playFootsteps(isMoving: boolean) {
+    if (isMoving) {
+      if (!this.footstepTimeout) {
+        this.playStep();
+      }
+    } else {
+      this.stopFootsteps();
+    }
+  }
+  
+  playStep() {
+    try {
+      // Skip if sound doesn't exist
+      if (!this.sounds['footstep']) {
+        return;
+      }
+      
+      this.playSoundWithVariation('footstep', {
+        rateVariation: 0.2,
+        volumeVariation: 0.2
+      });
+      
+      // Schedule next footstep
+      this.footstepTimeout = window.setTimeout(() => {
+        this.footstepTimeout = null;
+        if (this.footstepTimeout !== null) {
+          this.playStep();
+        }
+      }, 350);
+    } catch (error) {
+      console.error("Error playing footstep:", error);
     }
   }
   
   stopFootsteps() {
     if (this.footstepTimeout) {
-      clearTimeout(this.footstepTimeout);
+      window.clearTimeout(this.footstepTimeout);
       this.footstepTimeout = null;
     }
   }
-
+  
   playMusic(type: MusicType) {
-    if (this.currentMusic === type) return;
-    
-    // Stop current music if playing
-    this.stopMusic();
-    
-    // Only continue if the track exists
-    const music = this.musicTracks[type];
-    if (!music) return;
+    // Skip if music doesn't exist
+    if (!this.musicTracks[type]) {
+      console.warn(`Music "${type}" not found or not loaded yet`);
+      return;
+    }
     
     try {
-      // Start new music
-      music.volume(this.isMuted ? 0 : this.musicVolume);
-      music.play();
+      // Stop current music if playing
+      if (this.currentMusic && this.musicTracks[this.currentMusic]) {
+        this.musicTracks[this.currentMusic].stop();
+      }
+      
+      // Play new music
+      this.musicTracks[type].volume(this.musicVolume);
+      this.musicTracks[type].play();
       this.currentMusic = type;
-    } catch (e) {
-      console.warn('Error playing music:', e);
+    } catch (error) {
+      console.error(`Error playing music "${type}":`, error);
     }
   }
   

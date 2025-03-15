@@ -4,10 +4,9 @@ import { useGameStore } from '../store/gameStore';
 import * as THREE from 'three';
 
 // Camera settings
-const CAMERA_HEIGHT = 12;          // Height above player (reduced from 20)
-const CAMERA_DISTANCE = 15;        // Distance behind player (increased from 10)
+const CAMERA_HEIGHT = 12;          // Height above player
+const CAMERA_DISTANCE = 15;        // Distance behind player
 const CAMERA_SMOOTHING = 0.1;      // Lower = smoother camera (0.1 is very smooth, 0.5 is responsive)
-const CAMERA_LOOK_AHEAD = 5;       // How far ahead of the player to look based on movement
 const CAMERA_BOUNDS_PADDING = 5;   // Padding from room edges
 
 export function CameraController() {
@@ -16,9 +15,8 @@ export function CameraController() {
   
   // Reference to the target position
   const targetPosition = useRef(new THREE.Vector3());
-  const lookAtTarget = useRef(new THREE.Vector3());
   
-  // Get player position and movement from store
+  // Get player position from store
   const { player, currentRoomId, currentLevel } = useGameStore();
   
   // Set initial camera position
@@ -40,7 +38,7 @@ export function CameraController() {
     }
   }, []);
   
-  // Update camera position every frame
+  // Update camera position every frame to follow player
   useFrame(() => {
     if (!player || !player.position) return;
     
@@ -62,22 +60,11 @@ export function CameraController() {
       }
     }
     
-    // Calculate look-ahead based on player velocity
-    const lookAheadX = player.velocity ? player.velocity.x * CAMERA_LOOK_AHEAD : 0;
-    const lookAheadZ = player.velocity ? player.velocity.z * CAMERA_LOOK_AHEAD : 0;
-    
-    // Calculate target position for camera (above and behind player)
+    // Calculate target position for camera (directly above player)
     targetPosition.current.set(
       player.position.x,
       player.position.y + CAMERA_HEIGHT,
       player.position.z + CAMERA_DISTANCE
-    );
-    
-    // Calculate look-at target (player position + look-ahead)
-    lookAtTarget.current.set(
-      player.position.x + lookAheadX,
-      player.position.y,  // Look at player height
-      player.position.z + lookAheadZ
     );
     
     // Apply constraints to keep camera within room bounds
@@ -87,8 +74,12 @@ export function CameraController() {
     // Smoothly move camera to target position
     camera.position.lerp(targetPosition.current, CAMERA_SMOOTHING);
     
-    // Look at target
-    camera.lookAt(lookAtTarget.current);
+    // Always look at the player's position
+    camera.lookAt(
+      player.position.x,
+      player.position.y,
+      player.position.z
+    );
   });
   
   return null;
