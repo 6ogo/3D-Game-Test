@@ -21,59 +21,72 @@ export function HomeScene() {
   const handleStartGame = () => {
     setStartingGame(true);
 
-    // Apply meta-progression bonuses to starting player
-    const playerWithBonuses = applyMetaProgressionBonuses();
+    try {
+      // Apply meta-progression bonuses to starting player
+      const playerWithBonuses = applyMetaProgressionBonuses();
 
-    // Reset game with the enhanced player stats
-    resetGame(playerWithBonuses);
+      // Reset game with the enhanced player stats
+      resetGame(playerWithBonuses);
 
-    // Initialize game state for a new game
-    useGameStore.getState().startGame();
+      // Initialize game state for a new game
+      useGameStore.getState().startGame();
 
-    // Transition to the game scene
-    useGameFlowStore.getState().transitionToGame();
+      // Transition to the game scene
+      useGameFlowStore.getState().transitionToGame();
 
-    // Log start
-    console.log("Game starting...");
+      // Log start
+      console.log("Game starting...");
+    } catch (error) {
+      console.error("Error starting game:", error);
+      setStartingGame(false); // Reset button state in case of error
+    }
   };
-
 
   // Apply meta-progression bonuses to a new player
   const applyMetaProgressionBonuses = () => {
-    const { permanentUpgrades } = useMetaProgressionStore.getState();
-    const basePlayer = useGameStore.getState().player;
+    try {
+      const { permanentUpgrades } = useMetaProgressionStore.getState();
+      const basePlayer = useGameStore.getState().player;
 
-    // Start with a fresh player
-    const enhancedPlayer = { ...basePlayer };
+      // Start with a fresh player
+      const enhancedPlayer = { ...basePlayer };
 
-    // Apply all active upgrades
-    permanentUpgrades.forEach(upgrade => {
-      if (upgrade.currentLevel > 0) {
-        const effect = upgrade.effect(upgrade.currentLevel);
+      // Apply all active upgrades if they exist
+      if (permanentUpgrades && Array.isArray(permanentUpgrades)) {
+        permanentUpgrades.forEach(upgrade => {
+          if (upgrade && upgrade.currentLevel > 0 && typeof upgrade.effect === 'function') {
+            try {
+              const effect = upgrade.effect(upgrade.currentLevel);
 
-        // Apply specific effects based on upgrade type
-        if ('maxHealthBonus' in effect) {
-          enhancedPlayer.maxHealth += effect.maxHealthBonus;
-          enhancedPlayer.health += effect.maxHealthBonus;
-        }
+              // Apply specific effects based on upgrade type
+              if (effect && 'maxHealthBonus' in effect) {
+                enhancedPlayer.maxHealth += effect.maxHealthBonus;
+                enhancedPlayer.health += effect.maxHealthBonus;
+              }
 
-        if ('damageBonus' in effect) {
-          enhancedPlayer.abilities.forEach(ability => {
-            if (ability.type === 'attack') {
-              ability.damage += effect.damageBonus;
+              if (effect && 'damageBonus' in effect && enhancedPlayer.abilities) {
+                enhancedPlayer.abilities.forEach(ability => {
+                  if (ability && ability.type === 'attack') {
+                    ability.damage += effect.damageBonus;
+                  }
+                });
+              }
+
+              if (effect && 'critChanceBonus' in effect && enhancedPlayer.stats) {
+                enhancedPlayer.stats.criticalChance += effect.critChanceBonus;
+              }
+            } catch (e) {
+              console.warn("Error applying upgrade:", e);
             }
-          });
-        }
-
-        if ('critChanceBonus' in effect) {
-          enhancedPlayer.stats.criticalChance += effect.critChanceBonus;
-        }
-
-        // Other effects would be applied similarly
+          }
+        });
       }
-    });
 
-    return enhancedPlayer;
+      return enhancedPlayer;
+    } catch (error) {
+      console.error("Error in applyMetaProgressionBonuses:", error);
+      return useGameStore.getState().player; // Return the base player as fallback
+    }
   };
 
   return (
@@ -202,8 +215,6 @@ function HomeSceneEnvironment() {
         {/* Ethereal light effect */}
         <pointLight position={[0, 2, 0]} intensity={2} color="#9050ff" distance={10} />
       </group>
-
-      {/* Ambient particles would be added here in a full implementation */}
     </group>
   );
 }
@@ -213,6 +224,16 @@ function UpgradesPanel() {
   const permanentUpgrades = useMetaProgressionStore(state => state.permanentUpgrades);
   const souls = useMetaProgressionStore(state => state.souls);
   const purchaseUpgrade = useMetaProgressionStore(state => state.purchaseUpgrade);
+
+  // Check if permanentUpgrades exists and is an array
+  if (!permanentUpgrades || !Array.isArray(permanentUpgrades)) {
+    return (
+      <div className="bg-black/60 rounded-lg p-4 text-white">
+        <h2 className="text-2xl font-bold text-white mb-4">Permanent Upgrades</h2>
+        <p>No upgrades available at this time.</p>
+      </div>
+    );
+  }
 
   // Icons for different upgrade types
   const upgradeIcons: Record<string, React.ReactNode> = {

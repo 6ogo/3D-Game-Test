@@ -4,6 +4,7 @@ import { RigidBody, CapsuleCollider } from '@react-three/rapier';
 import * as THREE from 'three';
 import { useGameStore } from '../store/gameStore';
 import { useFrustumCulling } from '../systems/optimizations';
+import { AudioManager } from '../systems/audio';
 
 export function Enemy({ position }: { position: [number, number, number] }) {
   const rigidBodyRef = useRef<any>(null);
@@ -13,8 +14,10 @@ export function Enemy({ position }: { position: [number, number, number] }) {
   const targetPosition = useRef(new THREE.Vector3());
   const moveDirection = useRef(new THREE.Vector3());
   const currentVelocity = useRef(new THREE.Vector3());
-  const room = useGameStore.getState().currentLevel?.rooms.find(r => r.id === currentRoomId);
   const attackCooldown = useRef(0);
+
+  // Get the current room and safely handle potential undefined
+  const room = useGameStore.getState().currentLevel?.rooms.find(r => r.id === currentRoomId);
 
   // Add frustum culling for performance optimization
   useFrustumCulling(meshRef, 1.5); // 1.5 is the bounding sphere size
@@ -28,19 +31,39 @@ export function Enemy({ position }: { position: [number, number, number] }) {
       new THREE.Vector3(playerPos.x, 0, playerPos.z)
     );
 
+    // Attack logic with null checks
     if (distance < 2 && attackCooldown.current <= 0) {
       attackCooldown.current = 1; // Reset cooldown
-      const enemy = room?.enemies.find((e) => e.position.x === position[0] && e.position.z === position[2]);
-      if (enemy) {
-        let damage = 10; // Normal enemy default
-        if (enemy.type === 'Elite') damage = 20;
-        else if (enemy.type === 'Boss') damage = 50;
-        useGameStore.getState().takeDamage(damage);
+
+      // Find enemy with null checks
+      if (room?.enemies) {
+        const enemy = room.enemies.find((e) =>
+          e.position && e.position.x === position[0] && e.position.z === position[2]
+        );
+
+        if (enemy) {
+          let damage = 10; // Normal enemy default
+          if (enemy.type === 'Elite') damage = 20;
+          else if (enemy.type === 'Boss') damage = 50;
+
+          // Apply damage to player
+          useGameStore.getState().takeDamage(damage);
+
+          // Try to play hit sound
+          try {
+            AudioManager.playSound('hit');
+          } catch (e) {
+            console.warn("Failed to play hit sound", e);
+          }
+        }
       }
     }
 
+    // Get current position
     const currentPos = meshRef.current.getWorldPosition(new THREE.Vector3());
-    targetPosition.current.copy(playerPos).sub(currentPos);
+
+    // Update target direction
+    targetPosition.current.set(playerPos.x, playerPos.y, playerPos.z).sub(currentPos);
 
     // Check if line of sight to player is clear
     const canSeePlayer = checkLineOfSight(currentPos, new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z), room?.layout);
@@ -57,24 +80,38 @@ export function Enemy({ position }: { position: [number, number, number] }) {
       if (currentVelocity.current.lengthSq() > speed * speed) currentVelocity.current.normalize().multiplyScalar(speed);
 
       const rigidBody = rigidBodyRef.current;
-      const linvel = rigidBody.linvel();
-      rigidBody.setLinvel({ x: currentVelocity.current.x, y: linvel.y, z: currentVelocity.current.z });
+      if (rigidBody && rigidBody.linvel) {
+        const linvel = rigidBody.linvel();
+        rigidBody.setLinvel({ x: currentVelocity.current.x, y: linvel.y, z: currentVelocity.current.z });
+      }
 
+      // Update rotation to face player
       const angle = Math.atan2(moveDirection.current.x, moveDirection.current.z);
       meshRef.current.rotation.y = angle;
     }
 
+    // Second attack check with distance
     if (distance < 2 && attackCooldown.current <= 0) {
       attackCooldown.current = 1;
       useGameStore.getState().takeDamage(10);
     }
 
     // Sync health with store (simplified)
-    const enemy = room?.enemies.find(e => e.position.x === position[0] && e.position.z === position[2]);
-    if (enemy && enemy.health !== health) setHealth(enemy.health);
-    if (health <= 0) useGameStore.getState().removeEnemy(currentRoomId!, enemy!.id);
+    if (room?.enemies) {
+      const enemy = room.enemies.find(e =>
+        e.position && e.position.x === position[0] && e.position.z === position[2]
+      );
+
+      if (enemy && enemy.health !== health) setHealth(enemy.health);
+
+      // Handle death
+      if (health <= 0 && enemy) {
+        useGameStore.getState().removeEnemy(currentRoomId!, enemy.id);
+      }
+    }
   });
 
+  // Don't render if health is zero
   if (health <= 0) return null;
 
   return (
@@ -98,31 +135,32 @@ export function Enemy({ position }: { position: [number, number, number] }) {
 }
 
 // Helper function to check line of sight for enemies
-function checkLineOfSight(start: THREE.Vector3, end: THREE.Vector3, layout?: number[][]) {
+function checkLineOfSight(start: THREE.Vector3, end: THREE.Vector3, layout?: number[][]): boolean {
+  // If no layout, assume line of sight
   if (!layout) return true;
-  
+
   // Simple raycasting through the grid-based level layout
   const distance = start.distanceTo(end);
   const steps = Math.ceil(distance * 2); // 2 samples per unit distance
-  
+
   for (let i = 1; i < steps; i++) {
     const t = i / steps;
     const point = new THREE.Vector3().lerpVectors(start, end, t);
-    
+
     // Check if this point is inside a wall
     const gridX = Math.floor(point.x);
     const gridZ = Math.floor(point.z);
-    
+
     // Skip if outside layout bounds
     if (gridX < 0 || gridZ < 0 || gridZ >= layout.length || gridX >= layout[0].length) {
       continue;
     }
-    
+
     // If we hit a wall (0), no line of sight
     if (layout[gridZ][gridX] === 0) {
       return false;
     }
   }
-  
+
   return true;
 }

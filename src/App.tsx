@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Game } from './components/Game';
 import { HomeScene } from './components/HomeScene';
 import { GameKeyboardControls } from './components/KeyboardComponent';
@@ -26,19 +26,59 @@ function SceneRouter({ scene }: { scene: GameScene }) {
 // Main App component
 function App() {
   const currentScene = useGameFlowStore(state => state.currentScene);
+  const [audioInitialized, setAudioInitialized] = useState(false);
   
   // Initialize audio when app loads
   useEffect(() => {
-    AudioManager.preloadAll();
-    AudioManager.playMusic('main');
-    
-    return () => {
-      AudioManager.stopMusic();
-    };
+    // Attempt to preload audio, but make it optional
+    try {
+      AudioManager.preloadAll();
+      
+      // Only try to play music on user interaction
+      const handleUserInteraction = () => {
+        try {
+          AudioManager.playMusic('main');
+          setAudioInitialized(true);
+          
+          // Remove event listeners once audio is playing
+          document.removeEventListener('click', handleUserInteraction);
+          document.removeEventListener('keydown', handleUserInteraction);
+        } catch (e) {
+          console.warn('Failed to start audio:', e);
+        }
+      };
+      
+      // Add event listeners for user interaction
+      document.addEventListener('click', handleUserInteraction);
+      document.addEventListener('keydown', handleUserInteraction);
+      
+      // Clean up event listeners on unmount
+      return () => {
+        document.removeEventListener('click', handleUserInteraction);
+        document.removeEventListener('keydown', handleUserInteraction);
+        
+        // Try to stop music when component unmounts
+        try {
+          AudioManager.stopMusic();
+        } catch (e) {
+          console.warn('Error stopping audio:', e);
+        }
+      };
+    } catch (e) {
+      console.warn('Error initializing audio:', e);
+      return () => {}; // Empty cleanup function if initialization fails
+    }
   }, []);
   
   return (
     <div className="w-full h-screen">
+      {!audioInitialized && (
+        <div 
+          className="absolute top-0 left-0 right-0 z-50 bg-black text-white text-center p-2 text-sm"
+        >
+          Click or press any key to enable audio
+        </div>
+      )}
       <GameKeyboardControls>
         <SceneRouter scene={currentScene} />
       </GameKeyboardControls>

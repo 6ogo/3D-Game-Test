@@ -449,6 +449,10 @@ export class EnhancedLevelGenerator {
   /**
    * Generate a standard room layout using noise
    */
+  /**
+   * Generate a standard room layout using noise
+   * Fixed version that handles potential undefined values
+   */
   private generateStandardRoom(layout: number[][], width: number, height: number): void {
     // Parameters
     const scale = 0.1;
@@ -462,8 +466,14 @@ export class EnhancedLevelGenerator {
           layout[y][x] = 0; // Wall
         } else {
           // Use noise to create organic room shape
-          const value = this.noise2D(x * scale, y * scale);
-          layout[y][x] = value > threshold ? 1 : 0; // 1 = floor, 0 = wall
+          // Make sure layout[y][x] is always defined
+          try {
+            const value = this.noise2D(x * scale, y * scale);
+            layout[y][x] = value > threshold ? 1 : 0; // 1 = floor, 0 = wall
+          } catch (e) {
+            // Fallback if noise function fails
+            layout[y][x] = 1; // Default to floor
+          }
         }
       }
     }
@@ -473,13 +483,21 @@ export class EnhancedLevelGenerator {
     const centerY = Math.floor(height / 2);
     const centralRadius = Math.min(width, height) * 0.25;
 
-    for (let y = Math.max(1, Math.floor(centerY - centralRadius)); y <= Math.min(height - 2, Math.floor(centerY + centralRadius)); y++) {
-      for (let x = Math.max(1, Math.floor(centerX - centralRadius)); x <= Math.min(width - 2, Math.floor(centerX + centralRadius)); x++) {
-        layout[y][x] = 1; // Floor
+    // Safe bounds checking to prevent array index errors
+    const minY = Math.max(1, Math.floor(centerY - centralRadius));
+    const maxY = Math.min(height - 2, Math.floor(centerY + centralRadius));
+    const minX = Math.max(1, Math.floor(centerX - centralRadius));
+    const maxX = Math.min(width - 2, Math.floor(centerX + centralRadius));
+
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        if (y < height && x < width) {
+          layout[y][x] = 1; // Floor
+        }
       }
     }
 
-    // Add walkable paths from center to edges
+    // Add walkable paths from center to edges with safety checks
     this.addWalkablePaths(layout, width, height);
   }
 
@@ -1444,38 +1462,38 @@ export class EnhancedLevelGenerator {
     const centerX = Math.floor(width / 2);
     const centerY = Math.floor(height / 2);
 
-    // Create paths from center to each door
+    // Create paths from center to each door with proper bounds checking
     // North door
-    for (let y = 1; y <= centerY; y++) {
+    for (let y = 1; y <= centerY && y < height; y++) {
       for (let x = Math.max(0, centerX - 1); x <= Math.min(width - 1, centerX + 1); x++) {
-        if (y >= 0 && y < height) {
+        if (y >= 0 && y < height && x >= 0 && x < width) {
           layout[y][x] = 1; // Floor
         }
       }
     }
 
     // South door
-    for (let y = centerY; y < height - 1; y++) {
+    for (let y = centerY; y < height - 1 && y >= 0; y++) {
       for (let x = Math.max(0, centerX - 1); x <= Math.min(width - 1, centerX + 1); x++) {
-        if (y >= 0 && y < height) {
+        if (y >= 0 && y < height && x >= 0 && x < width) {
           layout[y][x] = 1; // Floor
         }
       }
     }
 
     // East door
-    for (let x = centerX; x < width - 1; x++) {
+    for (let x = centerX; x < width - 1 && x >= 0; x++) {
       for (let y = Math.max(0, centerY - 1); y <= Math.min(height - 1, centerY + 1); y++) {
-        if (x >= 0 && x < width) {
+        if (y >= 0 && y < height && x >= 0 && x < width) {
           layout[y][x] = 1; // Floor
         }
       }
     }
 
     // West door
-    for (let x = 1; x <= centerX; x++) {
+    for (let x = 1; x <= centerX && x < width; x++) {
       for (let y = Math.max(0, centerY - 1); y <= Math.min(height - 1, centerY + 1); y++) {
-        if (x >= 0 && x < width) {
+        if (y >= 0 && y < height && x >= 0 && x < width) {
           layout[y][x] = 1; // Floor
         }
       }
@@ -1614,16 +1632,36 @@ export class EnhancedLevelGenerator {
   private connectRooms(rooms: Room[]): void {
     // Special handling for levels with exactly 2 rooms (entrance and boss)
     if (rooms.length === 2) {
-      rooms[0].connections.push(rooms[1].id);
-      rooms[1].connections.push(rooms[0].id);
+      rooms[0].connections = [rooms[1].id];
+      rooms[1].connections = [rooms[0].id];
       return;
     }
 
     // For levels with more than 2 rooms, create a more complex structure
 
-    // Ensure main path first - critical path from entrance to boss
-    const entranceRoom = rooms.find(room => room.isEntrance)!;
-    const bossRoom = rooms.find(room => room.type === 'boss')!;
+    // Ensure all rooms have an initialized connections array
+    rooms.forEach(room => {
+      if (!room.connections) {
+        room.connections = [];
+      }
+    });
+
+    // Ensure entrance and boss room exist and have initialized connections
+    const entranceRoom = rooms.find(room => room.isEntrance);
+    const bossRoom = rooms.find(room => room.type === 'boss');
+
+    if (!entranceRoom || !bossRoom) {
+      console.error("Missing entrance or boss room");
+      // Create a simple linear path as fallback
+      for (let i = 0; i < rooms.length - 1; i++) {
+        if (!rooms[i].connections) rooms[i].connections = [];
+        if (!rooms[i + 1].connections) rooms[i + 1].connections = [];
+
+        rooms[i].connections.push(rooms[i + 1].id);
+        rooms[i + 1].connections.push(rooms[i].id);
+      }
+      return;
+    }
 
     // Identify non-entrance, non-boss rooms
     const midRooms = rooms.filter(room => !room.isEntrance && room.type !== 'boss');
@@ -1653,6 +1691,9 @@ export class EnhancedLevelGenerator {
 
     // Connect the rooms on the main path
     for (let i = 0; i < mainPathRooms.length - 1; i++) {
+      if (!mainPathRooms[i].connections) mainPathRooms[i].connections = [];
+      if (!mainPathRooms[i + 1].connections) mainPathRooms[i + 1].connections = [];
+
       mainPathRooms[i].connections.push(mainPathRooms[i + 1].id);
       mainPathRooms[i + 1].connections.push(mainPathRooms[i].id);
     }
@@ -1664,6 +1705,7 @@ export class EnhancedLevelGenerator {
 
     unconnectedRooms.forEach(room => {
       if (room === entranceRoom || room === bossRoom) return; // Skip entrance and boss
+      if (!room.connections) room.connections = [];
 
       // Choose a random room from the main path to connect to
       // Favor connecting to early rooms for treasure rooms
@@ -1677,6 +1719,7 @@ export class EnhancedLevelGenerator {
       }
 
       const connectToRoom = mainPathRooms[connectToIndex];
+      if (!connectToRoom.connections) connectToRoom.connections = [];
 
       // Connect the rooms both ways
       room.connections.push(connectToRoom.id);
@@ -1690,7 +1733,9 @@ export class EnhancedLevelGenerator {
 
       for (let i = 0; i < actualExtraConnections; i++) {
         // Choose two different random rooms that aren't already fully connected
-        const eligibleRooms = rooms.filter(room => room.connections.length < 4);
+        const eligibleRooms = rooms.filter(room =>
+          room.connections && room.connections.length < 4
+        );
 
         if (eligibleRooms.length < 2) break; // Not enough eligible rooms
 

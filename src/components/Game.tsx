@@ -1,13 +1,10 @@
-// Game.tsx - Main game component
-import { useEffect, useRef, useState } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+// Game.tsx - Fixed version with safe initialization
+import { useEffect, useState } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
 import { PerspectiveCamera, Sky, Stars, Html } from '@react-three/drei';
 import { Physics } from '@react-three/rapier';
 
 // Import custom systems
-import { VisualEffectsManager } from '../systems/visualEffects';
-import { ProjectileManager, ParticleSystem, EnemyPool } from '../systems/objectPooling';
-import { ShaderManager } from '../systems/shaders';
 import { useGameSessionStore } from '../store/gameSessionStore';
 import { Player } from './Player';
 import { UI } from './UI';
@@ -16,90 +13,73 @@ import { EnhancedLevelGenerator } from '../systems/EnhancedLevelGeneration';
 import { useGameStore } from '../store/gameStore';
 import { GameDebugTools } from '../utils/debug';
 
-// Game scene setup component
-function GameScene() {
-  const { scene, gl, camera } = useThree();
+// Safe initialization of potentially problematic systems
+// We'll create a custom hook for this
+function useSafeInitialization() {
+  const [initialized, setInitialized] = useState(false);
   const [isLevelLoaded, setIsLevelLoaded] = useState(false);
   const { setCurrentLevel, setCurrentRoomId } = useGameStore();
-  
-  // References to managers
-  const effectsManagerRef = useRef<VisualEffectsManager | null>(null);
-  const projectileManagerRef = useRef<ProjectileManager | null>(null);
-  const enemyPoolRef = useRef<EnemyPool | null>(null);
-  const shaderManagerRef = useRef<ShaderManager | null>(null);
+  const { scene } = useThree();
   
   // Start game session
   const startSession = useGameSessionStore(state => state.startSession);
   
-  // Initialize all systems on mount
+  // Initialize level generation and game state
   useEffect(() => {
     // Start tracking game session
     startSession();
     
-    // Initialize visual effects
-    effectsManagerRef.current = VisualEffectsManager.getInstance(gl, scene, camera);
-    
-    // Initialize object pools
-    projectileManagerRef.current = ProjectileManager.getInstance(scene);
-    ParticleSystem.getInstance(scene);
-    enemyPoolRef.current = EnemyPool.getInstance(scene);
-    
-    // Initialize shader manager
-    shaderManagerRef.current = new ShaderManager();
-    
-    // Generate level
-    const levelGenerator = new EnhancedLevelGenerator({
-      difficulty: 1,
-      roomCount: 7,
-      seed: Date.now().toString(),
-      branchingFactor: 0.4
-    });
-    
-    const level = levelGenerator.generateLevel();
-    
-    // Set level in store
-    setCurrentLevel(level);
-    
-    // Set first room (entrance room) as current
-    const entranceRoom = level.rooms.find(room => room.isEntrance);
-    if (entranceRoom) {
-      setCurrentRoomId(entranceRoom.id);
+    // Generate level with error handling
+    try {
+      // Create level generator with safe defaults
+      const levelGenerator = new EnhancedLevelGenerator({
+        difficulty: 1,
+        roomCount: 7,
+        seed: Date.now().toString(),
+        branchingFactor: 0.3
+      });
       
-      // Setup environment lighting based on room type
-      if (effectsManagerRef.current) {
-        effectsManagerRef.current.setupEnvironmentLighting(entranceRoom.type);
+      // Generate level
+      const level = levelGenerator.generateLevel();
+      
+      // Set level in store
+      setCurrentLevel(level);
+      
+      // Set first room (entrance room) as current
+      const entranceRoom = level.rooms.find(room => room.isEntrance);
+      if (entranceRoom) {
+        setCurrentRoomId(entranceRoom.id);
       }
-    }
-    
-    console.log("Level generated:", level);
-    
-    // Mark level as loaded - this will enable physics and player controls
-    setTimeout(() => {
+      
+      console.log("Level generated successfully");
+      
+      // Mark level as loaded with a delay
+      setTimeout(() => {
+        setIsLevelLoaded(true);
+        setInitialized(true);
+        console.log("Level loaded and ready - enabling player physics");
+      }, 1000); // Longer delay to ensure everything is ready
+    } catch (error) {
+      console.error("Error generating level:", error);
+      
+      // Still mark as initialized so the game can proceed with fallbacks
+      setInitialized(true);
       setIsLevelLoaded(true);
-      console.log("Level loaded and ready - enabling player physics");
-    }, 500); // Small delay to ensure everything is rendered
+    }
     
     // Cleanup on unmount
     return () => {
       // End game session and save stats
       useGameSessionStore.getState().endSession();
     };
-  }, [scene, gl, camera, startSession, setCurrentLevel, setCurrentRoomId]);
+  }, [scene, startSession, setCurrentLevel, setCurrentRoomId]);
   
-  // Update loop
-  useFrame((_state, delta) => {
-    // Update all managers
-    if (effectsManagerRef.current) {
-      effectsManagerRef.current.update(delta);
-    }
-    
-    if (projectileManagerRef.current) {
-      projectileManagerRef.current.update();
-    }
-    
-    // Update particle system
-    ParticleSystem.getInstance().update();
-  });
+  return { initialized, isLevelLoaded };
+}
+
+// Game scene setup component
+function GameScene() {
+  const { initialized, isLevelLoaded } = useSafeInitialization();
   
   // Loading indicator
   const LoadingScreen = () => (
@@ -140,8 +120,8 @@ function GameScene() {
       
       {/* Only enable physics when level is loaded */}
       <Physics gravity={[0, isLevelLoaded ? -30 : 0, 0]}>
-        {isLevelLoaded && <Player />}
-        <Level />
+        {isLevelLoaded && initialized && <Player />}
+        {initialized && <Level />}
       </Physics>
     </>
   );

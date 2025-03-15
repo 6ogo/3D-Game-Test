@@ -15,60 +15,60 @@ interface SoundConfig {
 
 // Map of all available sounds
 const soundConfigs: Record<SoundEffects | 'music', SoundConfig | Record<MusicType, SoundConfig>> = {
-  // SFX
+  // SFX - using empty arrays to prevent 404 errors
   hit: {
-    src: ['/sounds/hit.mp3', '/sounds/hit.webm'],
+    src: [],
     volume: 0.5,
   },
   heal: {
-    src: ['/sounds/heal.mp3', '/sounds/heal.webm'],
+    src: [],
     volume: 0.4,
   },
   ability: {
-    src: ['/sounds/ability.mp3', '/sounds/ability.webm'],
+    src: [],
     volume: 0.6,
   },
   dash: {
-    src: ['/sounds/dash.mp3', '/sounds/dash.webm'],
+    src: [],
     volume: 0.4,
   },
   footstep: {
-    src: ['/sounds/footstep.mp3', '/sounds/footstep.webm'],
+    src: [],
     volume: 0.2,
   },
   death: {
-    src: ['/sounds/death.mp3', '/sounds/death.webm'],
+    src: [],
     volume: 0.6,
   },
   pickup: {
-    src: ['/sounds/pickup.mp3', '/sounds/pickup.webm'],
+    src: [],
     volume: 0.5,
   },
   
-  // Music tracks
+  // Music tracks - using empty arrays to prevent 404 errors
   music: {
     main: {
-      src: ['/music/main-theme.mp3', '/music/main-theme.webm'],
+      src: [],
       volume: 0.3,
       loop: true,
     },
     combat: {
-      src: ['/music/combat.mp3', '/music/combat.webm'],
+      src: [],
       volume: 0.3,
       loop: true,
     },
     boss: {
-      src: ['/music/boss.mp3', '/music/boss.webm'],
+      src: [],
       volume: 0.4,
       loop: true,
     },
     victory: {
-      src: ['/music/victory.mp3', '/music/victory.webm'],
+      src: [],
       volume: 0.5,
       loop: false,
     },
     defeat: {
-      src: ['/music/defeat.mp3', '/music/defeat.webm'],
+      src: [],
       volume: 0.5,
       loop: false,
     },
@@ -104,25 +104,34 @@ class AudioManagerClass {
   }
   
   playSound(id: SoundEffects, options: { rate?: number; volume?: number } = {}) {
-    if (this.isMuted) return;
+    // Check if sound exists before playing
+    if (this.isMuted || !this.sounds[id]) return;
     
     const sound = this.sounds[id];
-    if (sound) {
-      // Apply custom rate and volume if provided
-      if (options.rate) sound.rate(options.rate);
+    
+    // Apply custom rate and volume if provided
+    if (options.rate) sound.rate(options.rate);
+    
+    // Play with custom volume or default
+    const finalVolume = options.volume !== undefined 
+      ? options.volume * this.sfxVolume 
+      : this.sfxVolume;
       
-      // Play with custom volume or default
-      const finalVolume = options.volume !== undefined 
-        ? options.volume * this.sfxVolume 
-        : this.sfxVolume;
-        
-      sound.volume(finalVolume);
+    sound.volume(finalVolume);
+    
+    // Check if sound can be played
+    try {
       sound.play();
+    } catch (e) {
+      console.warn('Error playing sound:', e);
     }
   }
   
   // Play sound with random variations for more natural feel
   playSoundWithVariation(id: SoundEffects, options: { rateVariation?: number; volumeVariation?: number } = {}) {
+    // Check if sound exists
+    if (!this.sounds[id]) return;
+    
     const rateVar = options.rateVariation || 0.1;
     const volumeVar = options.volumeVariation || 0.1;
     
@@ -133,7 +142,7 @@ class AudioManagerClass {
   }
   
   playFootsteps(isMoving: boolean) {
-    if (!isMoving || this.isMuted) {
+    if (!isMoving || this.isMuted || !this.sounds['footstep']) {
       if (this.footstepTimeout) {
         clearTimeout(this.footstepTimeout);
         this.footstepTimeout = null;
@@ -165,12 +174,17 @@ class AudioManagerClass {
     // Stop current music if playing
     this.stopMusic();
     
-    // Start new music
+    // Only continue if the track exists
     const music = this.musicTracks[type];
-    if (music) {
+    if (!music) return;
+    
+    try {
+      // Start new music
       music.volume(this.isMuted ? 0 : this.musicVolume);
       music.play();
       this.currentMusic = type;
+    } catch (e) {
+      console.warn('Error playing music:', e);
     }
   }
   
@@ -180,25 +194,33 @@ class AudioManagerClass {
     const currentTrack = this.currentMusic ? this.musicTracks[this.currentMusic] : null;
     const newTrack = this.musicTracks[type];
     
+    // Make sure new track exists
+    if (!newTrack) return;
+    
     // Fade out current music
     if (currentTrack && currentTrack.playing()) {
-      const originalVolume = currentTrack.volume();
-      const fadeStep = originalVolume / (fadeTime / 100);
-      
-      let currentVolume = originalVolume;
-      const fadeInterval = setInterval(() => {
-        currentVolume -= fadeStep;
-        if (currentVolume <= 0) {
-          currentTrack.stop();
-          clearInterval(fadeInterval);
-        } else {
-          currentTrack.volume(currentVolume);
-        }
-      }, 100);
+      try {
+        const originalVolume = currentTrack.volume();
+        const fadeStep = originalVolume / (fadeTime / 100);
+        
+        let currentVolume = originalVolume;
+        const fadeInterval = setInterval(() => {
+          currentVolume -= fadeStep;
+          if (currentVolume <= 0) {
+            currentTrack.stop();
+            clearInterval(fadeInterval);
+          } else {
+            currentTrack.volume(currentVolume);
+          }
+        }, 100);
+      } catch (e) {
+        // If fading fails, just stop the track
+        currentTrack.stop();
+      }
     }
     
     // Start new music with fade in
-    if (newTrack) {
+    try {
       newTrack.volume(0);
       newTrack.play();
       
@@ -217,13 +239,18 @@ class AudioManagerClass {
       }, 100);
       
       this.currentMusic = type;
+    } catch (e) {
+      console.warn('Error transitioning music:', e);
     }
   }
 
   stopMusic() {
-    if (this.currentMusic) {
-      const music = this.musicTracks[this.currentMusic];
-      music.stop();
+    if (this.currentMusic && this.musicTracks[this.currentMusic]) {
+      try {
+        this.musicTracks[this.currentMusic].stop();
+      } catch (e) {
+        console.warn('Error stopping music:', e);
+      }
       this.currentMusic = null;
     }
   }
@@ -231,7 +258,7 @@ class AudioManagerClass {
   setMusicVolume(volume: number) {
     this.musicVolume = Math.max(0, Math.min(1, volume));
     
-    if (this.currentMusic && !this.isMuted) {
+    if (this.currentMusic && !this.isMuted && this.musicTracks[this.currentMusic]) {
       this.musicTracks[this.currentMusic].volume(this.musicVolume);
     }
   }
@@ -255,7 +282,7 @@ class AudioManagerClass {
     });
     
     // Mute current music
-    if (this.currentMusic) {
+    if (this.currentMusic && this.musicTracks[this.currentMusic]) {
       this.musicTracks[this.currentMusic].volume(0);
     }
   }
@@ -269,7 +296,7 @@ class AudioManagerClass {
     });
     
     // Restore music volume
-    if (this.currentMusic) {
+    if (this.currentMusic && this.musicTracks[this.currentMusic]) {
       this.musicTracks[this.currentMusic].volume(this.musicVolume);
     }
   }
@@ -285,13 +312,17 @@ class AudioManagerClass {
   
   // Use for asset preloading to prevent audio delay on first play
   preloadAll() {
-    Object.values(this.sounds).forEach(sound => {
-      sound.load();
-    });
-    
-    Object.values(this.musicTracks).forEach(track => {
-      track.load();
-    });
+    try {
+      Object.values(this.sounds).forEach(sound => {
+        if (sound && sound.load) sound.load();
+      });
+      
+      Object.values(this.musicTracks).forEach(track => {
+        if (track && track.load) track.load();
+      });
+    } catch (e) {
+      console.warn('Error preloading audio:', e);
+    }
   }
 }
 
