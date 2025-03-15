@@ -167,44 +167,119 @@ const PlayerLight = () => {
   );
 };
 
+// HUD Component for player information
+const HUD = () => {
+  const { player } = useGameStore();
+  const [showHUD, setShowHUD] = useState(true);
+
+  // Toggle HUD visibility with H key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'h' || e.key === 'H') {
+        setShowHUD(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  if (!showHUD) return null;
+
+  // Default values if player data isn't available
+  const health = player?.health || 100;
+  const maxHealth = player?.maxHealth || 100;
+  const level = player?.level || 1;
+  const experience = player?.experience || 0;
+  
+  // Calculate next level XP (100 * current level)
+  const nextLevelExp = 100 * level;
+  
+  // Get player stats
+  const strength = player?.stats?.strength || 10;
+  const agility = player?.stats?.agility || 10;
+  const vitality = player?.stats?.vitality || 10;
+
+  return (
+    <div className="hud">
+      {/* Health bar */}
+      <div className="stat-container">
+        <div className="stat-label">HP</div>
+        <div className="stat-bar health-bar">
+          <div className="stat-fill" style={{ width: `${(health / maxHealth) * 100}%` }}></div>
+          <div className="stat-text">{Math.floor(health)}/{maxHealth}</div>
+        </div>
+      </div>
+
+      {/* Experience bar */}
+      <div className="stat-container">
+        <div className="stat-label">LVL {level}</div>
+        <div className="stat-bar exp-bar">
+          <div 
+            className="stat-fill" 
+            style={{ width: `${(experience / nextLevelExp) * 100}%` }}
+          ></div>
+          <div className="stat-text">{experience}/{nextLevelExp}</div>
+        </div>
+      </div>
+
+      {/* Additional player stats */}
+      <div className="player-stats">
+        <div className="stat-box">
+          <span className="stat-icon">⚔️</span>
+          <span className="stat-value">{strength}</span>
+        </div>
+        <div className="stat-box">
+          <span className="stat-icon">🛡️</span>
+          <span className="stat-value">{vitality}</span>
+        </div>
+        <div className="stat-box">
+          <span className="stat-icon">⚡</span>
+          <span className="stat-value">{agility}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Main Game component
 export function Game() {
-  const { isLevelLoaded, initialized, error } = useSafeInitialization();
-  
+  const { initialized, isLevelLoaded, error } = useSafeInitialization();
+
+  // Handle WebGL context errors
   const handleContextLost = useCallback((event: Event) => {
-    console.warn('WebGL context lost:', event);
-    // Prevent default behavior to allow for recovery
+    console.error('WebGL context lost!');
     event.preventDefault();
   }, []);
 
-  const handleContextRestored = useCallback((event: Event) => {
-    console.log('WebGL context restored:', event);
-    // You might want to reload textures or reinitialize some components
+  const handleContextRestored = useCallback(() => {
+    console.log('WebGL context restored!');
   }, []);
-  
+
   if (error) {
     return (
       <div className="error-screen">
-        <h2>Error Loading Game</h2>
+        <h1>Error</h1>
         <p>{error.message}</p>
-        <button onClick={() => window.location.reload()}>Retry</button>
+        <button onClick={() => window.location.reload()}>Restart Game</button>
       </div>
     );
   }
-  
-  if (!isLevelLoaded || !initialized) {
+
+  if (!initialized) {
     return (
       <div className="loading-screen">
-        <h2>Loading Game...</h2>
-        <div className="loading-bar">
-          <div className="loading-progress"></div>
-        </div>
+        <h1>Initializing Game...</h1>
+        <div className="loading-spinner"></div>
       </div>
     );
   }
-  
+
   return (
-    <div className="w-full h-screen">
+    <div className="game-container">
+      {/* HUD Elements */}
+      <HUD />
+      
+      {/* Game Canvas */}
       <Canvas
         shadows
         gl={{
@@ -229,13 +304,14 @@ export function Game() {
           canvas.addEventListener('webglcontextrestored', handleContextRestored as EventListener);
         }}
       >
+        {/* Enhanced lighting setup */}
         {/* Ambient light for overall scene brightness */}
-        <ambientLight intensity={0.15} />
+        <ambientLight intensity={0.25} color="#b9d5ff" />
         
         {/* Main directional light with shadows */}
         <directionalLight
           position={[10, 20, 5]}
-          intensity={0.4}
+          intensity={0.5}
           castShadow
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
@@ -244,32 +320,53 @@ export function Game() {
           shadow-camera-right={20}
           shadow-camera-top={20}
           shadow-camera-bottom={-20}
+          color="#fffaea"
         />
         
-        {/* Hemisphere light for more natural lighting */}
+        {/* Additional fill light from the opposite side */}
+        <directionalLight 
+          position={[-10, 15, -5]} 
+          intensity={0.25} 
+          color="#a0c0ff" 
+        />
+        
+        {/* Ground-reflected light */}
         <hemisphereLight
-          args={['#b9d5ff', '#444466', 0.3]}
+          args={['#b9d5ff', '#444466', 0.4]}
         />
         
         {/* Sky and stars for visual appeal */}
-        <Sky sunPosition={[100, 10, 100]} />
-        <Stars radius={100} depth={50} count={5000} factor={4} />
+        <Sky distance={450000} sunPosition={[0, 1, 0]} inclination={0.25} azimuth={0.25} />
+        <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
         
-        {/* Camera controller for following the player */}
-        <CameraController />
-        
-        {/* Player-centered light that follows the player */}
-        <PlayerLight />
-        
-        {/* Physics world */}
-        <Physics gravity={[0, isLevelLoaded ? -30 : 0, 0]}>
-          {isLevelLoaded && initialized && <Player />}
-          {initialized && <Level />}
-        </Physics>
-        
-        {/* WebGL context loss handler */}
+        {/* WebGL context handler */}
         <WebGLContextHandler />
+        
+        {/* Physics world for gameplay */}
+        <Physics>
+          {isLevelLoaded && (
+            <>
+              {/* Camera controller that follows player */}
+              <CameraController />
+              
+              {/* Level geometry and elements */}
+              <Level />
+              
+              {/* Player character */}
+              <Player />
+              
+              {/* Player-following light */}
+              <PlayerLight />
+            </>
+          )}
+        </Physics>
       </Canvas>
+      
+      {/* Game controls help */}
+      <div className="controls-help">
+        <p>WASD: Move | Mouse1/F: Attack | Space: Dash</p>
+        <p>Q/E: Special | R: Cast | H: Toggle HUD</p>
+      </div>
     </div>
   );
 }

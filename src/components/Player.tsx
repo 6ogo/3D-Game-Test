@@ -2,113 +2,10 @@ import { useRef, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameStore } from '../store/gameStore';
 import * as THREE from 'three';
-import { CapsuleCollider, RigidBody } from '@react-three/rapier';
-// import { useKeyboardControls } from '@react-three/drei';
+import { RigidBody } from '@react-three/rapier';
 import { AudioManager } from '../systems/audio';
-// These imports might need to be created or fixed if the systems don't exist yet
-// import { ParticleSystem } from '../systems/particles';
-// import { VisualEffectsManager } from '../systems/visualEffects';
-// import { ProgressionSystem } from '../systems/progression';
 
-// Define temporary placeholders for missing systems
-const ProgressionSystem = {
-  getInstance: () => ProgressionSystem,
-  calculateStats: (player: any) => {
-    console.log('ProgressionSystem.calculateStats called with:', player);
-    return {
-      criticalChance: 0.1,
-      criticalDamage: 1.5,
-      strength: 1.0,
-      wisdom: 1.0
-    };
-  }
-};
-
-// Placeholder for ParticleSystem if it doesn't exist yet
-const ParticleSystem = {
-  getInstance: () => ParticleSystem,
-  emitParticles: (type: string, position: THREE.Vector3, count: number, speed: number, size: number, duration: number, color?: THREE.Color) => {
-    console.log('ParticleSystem.emitParticles called with:', type, position, count, speed, size, duration, color);
-    return null;
-  }
-};
-
-// Placeholder for VisualEffectsManager if it doesn't exist yet
-const VisualEffectsManager = {
-  getInstance: () => VisualEffectsManager,
-  createAttackTrail: (startPoint: THREE.Vector3, endPoint: THREE.Vector3, color: number, duration: number) => {
-    console.log('VisualEffectsManager.createAttackTrail called with:', startPoint, endPoint, color, duration);
-    return null;
-  },
-  createImpactEffect: (position: THREE.Vector3, color: number, scale: number, duration?: number) => {
-    console.log('VisualEffectsManager.createImpactEffect called with:', position, color, scale, duration);
-    return null;
-  }
-};
-
-// Weapon types and their properties
-const WEAPONS = {
-  'sword': {
-    range: 2.5,
-    attackSpeed: 0.3,
-    combos: [
-      { damage: 20, angle: 60, range: 2.5, knockback: 0.5 },
-      { damage: 25, angle: 90, range: 2.5, knockback: 1.0 },
-      { damage: 35, angle: 120, range: 3.0, knockback: 2.0 }
-    ],
-    special: {
-      damage: 60,
-      angle: 360,
-      range: 3.0,
-      knockback: 3.0,
-      cooldown: 3.0
-    }
-  },
-  'spear': {
-    range: 3.5,
-    attackSpeed: 0.4,
-    combos: [
-      { damage: 15, angle: 30, range: 3.5, knockback: 1.0 },
-      { damage: 20, angle: 30, range: 4.0, knockback: 1.5 },
-      { damage: 30, angle: 45, range: 4.0, knockback: 2.0 }
-    ],
-    special: {
-      damage: 50,
-      angle: 180,
-      range: 4.5,
-      knockback: 3.0,
-      cooldown: 3.5
-    }
-  },
-  'gauntlets': {
-    range: 1.8,
-    attackSpeed: 0.2,
-    combos: [
-      { damage: 10, angle: 45, range: 1.8, knockback: 0.2 },
-      { damage: 12, angle: 45, range: 1.8, knockback: 0.3 },
-      { damage: 15, angle: 45, range: 1.8, knockback: 0.4 },
-      { damage: 25, angle: 90, range: 2.0, knockback: 1.0 }
-    ],
-    special: {
-      damage: 40,
-      angle: 120,
-      range: 2.5,
-      knockback: 2.0,
-      cooldown: 2.5
-    }
-  }
-};
-
-// Cast abilities
-const CASTS = {
-  'standard': {
-    damage: 30,
-    range: 15,
-    speed: 20,
-    cooldown: 5.0
-  }
-};
-
+// Add a simple attack animation component
 const AttackAnimation = ({ getKeysFn }: { getKeysFn: () => any }) => {
   const [isAttacking, setIsAttacking] = useState(false);
   const stickRef = useRef<THREE.Mesh>(null);
@@ -130,18 +27,18 @@ const AttackAnimation = ({ getKeysFn }: { getKeysFn: () => any }) => {
   // Animate the stick
   useFrame(() => {
     if (stickRef.current && isAttacking) {
-      // Simple up/down animation
-      stickRef.current.rotation.x = Math.sin(Date.now() * 0.02) * 1.5;
+      // More dramatic up/down animation when attacking
+      stickRef.current.rotation.x = Math.sin(Date.now() * 0.03) * 2.0;
     } else if (stickRef.current) {
-      // Reset position when not attacking
-      stickRef.current.rotation.x = 0;
+      // Subtle idle animation when not attacking
+      stickRef.current.rotation.x = Math.sin(Date.now() * 0.005) * 0.2;
     }
   });
   
   return (
-    <mesh ref={stickRef} position={[0, 1, 0]}>
-      <boxGeometry args={[0.1, 1, 0.1]} />
-      <meshStandardMaterial color="#8B4513" />
+    <mesh ref={stickRef} position={[0, 1, 0.5]}>
+      <boxGeometry args={[0.2, 1.2, 0.2]} />
+      <meshStandardMaterial color="#aa5500" emissive="#441100" emissiveIntensity={0.5} />
     </mesh>
   );
 };
@@ -149,35 +46,29 @@ const AttackAnimation = ({ getKeysFn }: { getKeysFn: () => any }) => {
 export function Player() {
   const rigidBodyRef = useRef<any>(null);
   const meshRef = useRef<THREE.Group>(null);
+  const attackTrailRef = useRef<THREE.Line | null>(null);
+  
+  // Player state
+  const [comboStep, setComboStep] = useState(0);
+  const [isDashingState, setIsDashing] = useState(false);
+  const isAttacking = useRef(false);
+  const attackStartTime = useRef(0);
+  const attackDuration = useRef(0.3);
+  const attackDirection = useRef(new THREE.Vector3(0, 0, -1));
+  const lastAttackTime = useRef(0);
+  const comboResetTime = useRef(1500); // ms before combo resets
+  
+  // Cooldowns
+  const dashCooldown = useRef(0);
+  const specialCooldown = useRef(0);
+  const castCooldown = useRef(0);
+  
+  // Game state
+  const { currentLevel, currentRoomId } = useGameStore();
   
   // Movement-related refs
   const moveDirection = useRef<THREE.Vector3>(new THREE.Vector3());
   const currentVelocity = useRef<THREE.Vector3>(new THREE.Vector3());
-  const isDashing = useRef<boolean>(false);
-  
-  // Combat-related refs
-  const attackDirection = useRef<THREE.Vector3>(new THREE.Vector3());
-  const attackTrailRef = useRef<THREE.Object3D | null>(null);
-  const isAttacking = useRef<boolean>(false);
-  const attackStartTime = useRef<number>(0);
-  const attackDuration = useRef<number>(0.3);
-  const lastAttackTime = useRef<number>(0);
-  const comboResetTime = useRef<number>(1.5);
-  
-  // Cooldown refs
-  const dashCooldown = useRef<number>(0);
-  const specialCooldown = useRef<number>(0);
-  const castCooldown = useRef<number>(0);
-  
-  // State
-  const [comboStep, setComboStep] = useState<number>(0);
-  const [currentWeapon] = useState<string>('sword');
-  const setIsDashing = (value: boolean) => { isDashing.current = value; };
-  
-  // Game state
-  const { player, currentRoomId, currentLevel } = useGameStore();
-  const updateDamageDealt = useGameStore((state) => state.updateDamageDealt);
-  const setCurrentRoomId = useGameStore((state) => state.setCurrentRoomId);
   
   // Keyboard state
   const keyboard = useRef({
@@ -284,9 +175,6 @@ export function Player() {
   useFrame((_state, delta) => {
     if (!meshRef.current || !rigidBodyRef.current || !currentLevel || !currentRoomId || useGameStore.getState().isUpgradeAvailable) return;
 
-    const currentRoom = currentLevel.rooms.find((room) => room.id === currentRoomId);
-    if (!currentRoom) return;
-
     // Update cooldowns
     if (dashCooldown.current > 0) dashCooldown.current -= delta;
     if (specialCooldown.current > 0) specialCooldown.current -= delta;
@@ -306,6 +194,7 @@ export function Player() {
       }
     }
 
+    // Get player input
     const keys = getKeys();
     
     // Reset combo if too much time has passed since last attack
@@ -313,9 +202,86 @@ export function Player() {
       setComboStep(0);
     }
     
+    // Process player inputs and update movement
+    moveDirection.current.set(0, 0, 0);
+    
+    // Calculate movement direction based on key input
+    if (keys.forward) moveDirection.current.z -= 1;
+    if (keys.backward) moveDirection.current.z += 1;
+    if (keys.left) moveDirection.current.x -= 1;
+    if (keys.right) moveDirection.current.x += 1;
+    
+    // Normalize movement direction if length > 0
+    if (moveDirection.current.lengthSq() > 0) {
+      moveDirection.current.normalize();
+      
+      // Face the movement direction
+      const angle = Math.atan2(moveDirection.current.x, moveDirection.current.z);
+      meshRef.current.rotation.y = angle;
+    }
+    
+    // Calculate velocity
+    let velocity = rigidBodyRef.current.linvel();
+    
+    // Store current velocity for reference in other calculations
+    currentVelocity.current.set(velocity.x, velocity.y, velocity.z);
+    
+    // Apply movement forces based on movement direction
+    const baseSpeed = 5.0; // Base movement speed
+    const attackingSpeedMultiplier = isAttacking.current ? 0.3 : 1.0; // Slow down during attacks
+    const dashingSpeedMultiplier = isDashingState ? 2.5 : 1.0; // Speed up during dash
+    
+    const effectiveSpeed = baseSpeed * attackingSpeedMultiplier * dashingSpeedMultiplier;
+    
+    // Scale movement by speed
+    moveDirection.current.multiplyScalar(effectiveSpeed);
+    
+    // Save player's current position
+    const oldPosition = rigidBodyRef.current.translation();
+    
+    // Apply velocity directly for responsive movement
+    rigidBodyRef.current.setLinvel({ 
+      x: moveDirection.current.x, 
+      y: 0, // Don't change vertical velocity to maintain jump physics
+      z: moveDirection.current.z 
+    }, true);
+    
+    // Detect if player actually moved
+    const newPosition = rigidBodyRef.current.translation();
+    if (oldPosition.x !== newPosition.x || oldPosition.z !== newPosition.z) {
+      // Update player position in store for camera following
+      useGameStore.getState().setPlayerPosition({
+        x: newPosition.x,
+        y: newPosition.y,
+        z: newPosition.z
+      });
+      
+      // Update player velocity in store
+      useGameStore.getState().setPlayerVelocity({
+        x: moveDirection.current.x,
+        y: 0,
+        z: moveDirection.current.z
+      });
+    }
+    
     // Basic Attack
     if (keys.attack && !isAttacking.current) {
-      const weaponData = WEAPONS[currentWeapon as keyof typeof WEAPONS];
+      const weaponData = {
+        range: 2.5,
+        attackSpeed: 0.3,
+        combos: [
+          { damage: 20, angle: 60, range: 2.5, knockback: 0.5 },
+          { damage: 25, angle: 90, range: 2.5, knockback: 1.0 },
+          { damage: 35, angle: 120, range: 3.0, knockback: 2.0 }
+        ],
+        special: {
+          damage: 60,
+          angle: 360,
+          range: 3.0,
+          knockback: 3.0,
+          cooldown: 3.0
+        }
+      };
       const comboData = weaponData.combos[comboStep];
       
       // Set attack state
@@ -346,7 +312,22 @@ export function Player() {
     
     // Special Attack
     if (keys.special && specialCooldown.current <= 0 && !isAttacking.current) {
-      const weaponData = WEAPONS[currentWeapon as keyof typeof WEAPONS];
+      const weaponData = {
+        range: 2.5,
+        attackSpeed: 0.3,
+        combos: [
+          { damage: 20, angle: 60, range: 2.5, knockback: 0.5 },
+          { damage: 25, angle: 90, range: 2.5, knockback: 1.0 },
+          { damage: 35, angle: 120, range: 3.0, knockback: 2.0 }
+        ],
+        special: {
+          damage: 60,
+          angle: 360,
+          range: 3.0,
+          knockback: 3.0,
+          cooldown: 3.0
+        }
+      };
       const specialData = weaponData.special;
       
       // Set attack state
@@ -377,7 +358,12 @@ export function Player() {
     
     // Cast Ability
     if (keys.cast && castCooldown.current <= 0 && !isAttacking.current) {
-      const castData = CASTS['standard'];
+      const castData = {
+        damage: 30,
+        range: 15,
+        speed: 20,
+        cooldown: 5.0
+      };
       
       // Set cooldown
       castCooldown.current = castData.cooldown;
@@ -402,19 +388,8 @@ export function Player() {
       launchCastProjectile(castPosition, castDirection, castData);
     }
 
-    // Movement handling
-    moveDirection.current.set(0, 0, 0);
-    if (keys.forward) moveDirection.current.z -= 1;
-    if (keys.backward) moveDirection.current.z += 1;
-    if (keys.left) moveDirection.current.x -= 1;
-    if (keys.right) moveDirection.current.x += 1;
-    
-    if (moveDirection.current.lengthSq() > 0) {
-      moveDirection.current.normalize();
-    }
-
     // Dashing
-    if (keys.jump && dashCooldown.current <= 0 && moveDirection.current.lengthSq() > 0) {
+    if (keys.jump && dashCooldown.current <= 0 && moveDirection.current.length() > 0) {
       setIsDashing(true);
       dashCooldown.current = 0.5;
       
@@ -427,7 +402,22 @@ export function Player() {
       // If dash-attack feature is enabled (i.e., attacking during dash)
       if (keys.attack && !isAttacking.current) {
         // Execute dash-attack with bonus damage
-        const weaponData = WEAPONS[currentWeapon as keyof typeof WEAPONS];
+        const weaponData = {
+          range: 2.5,
+          attackSpeed: 0.3,
+          combos: [
+            { damage: 20, angle: 60, range: 2.5, knockback: 0.5 },
+            { damage: 25, angle: 90, range: 2.5, knockback: 1.0 },
+            { damage: 35, angle: 120, range: 3.0, knockback: 2.0 }
+          ],
+          special: {
+            damage: 60,
+            angle: 360,
+            range: 3.0,
+            knockback: 3.0,
+            cooldown: 3.0
+          }
+        };
         const comboData = weaponData.combos[0]; // Use first combo for dash-attack
         
         performAttack(comboData.damage * 1.5, comboData.range, comboData.angle, comboData.knockback * 1.5);
@@ -437,59 +427,8 @@ export function Player() {
       setTimeout(() => setIsDashing(false), 200);
     }
 
-    // Get move speed from player stats, or use default
-    const baseSpeed = player.stats.moveSpeed || 8;
-    const speed = isDashing.current ? baseSpeed * 2.5 : baseSpeed;
-    const acceleration = isDashing.current ? 50 : 15;
-    const damping = isDashing.current ? 0.95 : 0.75;
-
-    // Apply movement
-    currentVelocity.current.x += moveDirection.current.x * acceleration * delta;
-    currentVelocity.current.z += moveDirection.current.z * acceleration * delta;
-    currentVelocity.current.multiplyScalar(damping);
-    
-    if (currentVelocity.current.lengthSq() > speed * speed) {
-      currentVelocity.current.normalize().multiplyScalar(speed);
-    }
-
-    // Apply velocity to rigid body
-    const rigidBody = rigidBodyRef.current;
-    const linvel = rigidBody.linvel();
-    rigidBody.setLinvel({ x: currentVelocity.current.x, y: linvel.y, z: currentVelocity.current.z });
-
-    // Update rotation to face movement direction
-    if (moveDirection.current.lengthSq() > 0) {
-      const angle = Math.atan2(moveDirection.current.x, moveDirection.current.z);
-      meshRef.current!.rotation.y = angle;
-    }
-
-    // Update player position in store
-    const worldPosition = meshRef.current!.getWorldPosition(new THREE.Vector3());
-    useGameStore.setState({ 
-      player: { 
-        ...player, 
-        position: { 
-          x: worldPosition.x, 
-          y: worldPosition.y, 
-          z: worldPosition.z 
-        },
-        velocity: {
-          x: currentVelocity.current.x,
-          y: linvel.y,
-          z: currentVelocity.current.z
-        }
-      }
-    });
-
-    // Play footstep sounds when moving
-    if (moveDirection.current.lengthSq() > 0 && !isDashing.current) {
-      AudioManager.playFootsteps(true);
-    } else {
-      AudioManager.playFootsteps(false);
-    }
-
     // Room transition logic
-    handleRoomTransitions(currentRoom, worldPosition);
+    handleRoomTransitions(currentLevel.rooms.find((room) => room.id === currentRoomId), rigidBodyRef.current.translation());
   });
 
   // Helper function to perform attacks
@@ -516,7 +455,12 @@ export function Player() {
         
         if (angleDeg <= angle / 2) {
           // Apply damage with critical chance from player stats
-          const stats = ProgressionSystem.getInstance().calculateStats(player);
+          const stats = {
+            criticalChance: 0.1,
+            criticalDamage: 1.5,
+            strength: 1.0,
+            wisdom: 1.0
+          };
           const isCritical = Math.random() < stats.criticalChance;
           const finalDamage = isCritical ? 
             Math.floor(damage * stats.criticalDamage) : 
@@ -526,12 +470,12 @@ export function Player() {
           enemy.health -= finalDamage;
           
           // Register damage in game store
-          updateDamageDealt(finalDamage);
+          useGameStore.getState().updateDamageDealt(finalDamage);
           
           // Apply knockback
           if (knockback > 0) {
             // In a full implementation, you would apply force to the enemy's rigidbody
-            // This is a simplified placeholder
+            // This is a simplistic placeholder
             enemy.position.x += toEnemy.x * knockback;
             enemy.position.z += toEnemy.z * knockback;
           }
@@ -606,7 +550,12 @@ export function Player() {
       const enemy = currentRoom.enemies[hitWithIndex.index];
       
       // Calculate damage
-      const stats = ProgressionSystem.getInstance().calculateStats(player);
+      const stats = {
+        criticalChance: 0.1,
+        criticalDamage: 1.5,
+        strength: 1.0,
+        wisdom: 1.0
+      };
       const isCritical = Math.random() < stats.criticalChance;
       const finalDamage = isCritical ? 
         Math.floor(castData.damage * stats.criticalDamage) : 
@@ -616,7 +565,7 @@ export function Player() {
       enemy.health -= finalDamage;
       
       // Register damage in game store
-      updateDamageDealt(finalDamage);
+      useGameStore.getState().updateDamageDealt(finalDamage);
       
       // Create hit effect
       createHitEffect(
@@ -645,7 +594,7 @@ export function Player() {
       );
       
       if (distance < 1) {
-        setCurrentRoomId(connectedRoomId);
+        useGameStore.getState().setCurrentRoomId(connectedRoomId);
         const newRoom = currentLevel!.rooms.find((room) => room.id === connectedRoomId);
         
         if (newRoom) {
@@ -690,9 +639,7 @@ export function Player() {
     const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
     
     // Create material based on current weapon
-    const color = currentWeapon === 'sword' ? 0x4a9eff : 
-                  currentWeapon === 'spear' ? 0x44ff44 : 
-                  0xffaa44;
+    const color = "#aa5500";
     
     const lineMaterial = new THREE.LineBasicMaterial({ 
       color, 
@@ -714,7 +661,12 @@ export function Player() {
         attackTrailRef.current.localToWorld(points[i].clone()).add(worldPos);
         
         // Get particle system
-        const particleSystem = ParticleSystem.getInstance();
+        const particleSystem = {
+          emitParticles: (type: string, position: THREE.Vector3, count: number, speed: number, size: number, duration: number, color?: THREE.Color) => {
+            console.log('ParticleSystem.emitParticles called with:', type, position, count, speed, size, duration, color);
+            return null;
+          }
+        };
         particleSystem.emitParticles('dash', worldPos, 3, 300, 0.2, 0.05);
       }
     }
@@ -758,9 +710,7 @@ export function Player() {
     const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
     
     // Create material based on current weapon with more intense color
-    const color = currentWeapon === 'sword' ? 0x00aaff : 
-                  currentWeapon === 'spear' ? 0x00ff00 : 
-                  0xff8800;
+    const color = "#aa5500";
     
     const lineMaterial = new THREE.LineBasicMaterial({ 
       color, 
@@ -780,7 +730,12 @@ export function Player() {
     meshRef.current.getWorldPosition(worldPos);
     
     // Get particle system
-    const particleSystem = ParticleSystem.getInstance();
+    const particleSystem = {
+      emitParticles: (type: string, position: THREE.Vector3, count: number, speed: number, size: number, duration: number, color?: THREE.Color) => {
+        console.log('ParticleSystem.emitParticles called with:', type, position, count, speed, size, duration, color);
+        return null;
+      }
+    };
     
     // Emit particles in a circle/arc
     for (let i = 0; i <= segments; i++) {
@@ -822,7 +777,12 @@ export function Player() {
   // Visual effect for cast ability
   const createCastVisual = (startPoint: THREE.Vector3, endPoint: THREE.Vector3) => {
     // Create a tracer effect for the cast projectile
-    const effectsManager = VisualEffectsManager.getInstance();
+    const effectsManager = {
+      createAttackTrail: (startPoint: THREE.Vector3, endPoint: THREE.Vector3, color: number, duration: number) => {
+        console.log('VisualEffectsManager.createAttackTrail called with:', startPoint, endPoint, color, duration);
+        return null;
+      }
+    };
     if (effectsManager) {
       effectsManager.createAttackTrail(
         startPoint, 
@@ -833,7 +793,12 @@ export function Player() {
     }
     
     // Add particle effects along the path
-    const particleSystem = ParticleSystem.getInstance();
+    const particleSystem = {
+      emitParticles: (type: string, position: THREE.Vector3, count: number, speed: number, size: number, duration: number, color?: THREE.Color) => {
+        console.log('ParticleSystem.emitParticles called with:', type, position, count, speed, size, duration, color);
+        return null;
+      }
+    };
     if (particleSystem) {
       // Calculate distance and number of particles
       const distance = startPoint.distanceTo(endPoint);
@@ -879,7 +844,12 @@ export function Player() {
     const damageScale = Math.min(1.5, Math.max(0.5, damage / 10))
     const scaledCount = isCritical ? Math.floor(20 * damageScale) : Math.floor(10 * damageScale);
     // Create particle effect at hit position
-    const particleSystem = ParticleSystem.getInstance();
+    const particleSystem = {
+      emitParticles: (type: string, position: THREE.Vector3, count: number, speed: number, size: number, duration: number, color?: THREE.Color) => {
+        console.log('ParticleSystem.emitParticles called with:', type, position, count, speed, size, duration, color);
+        return null;
+      }
+    };
     if (particleSystem) {
       const color = isCritical ? 0xffff00 : 0xff4400;
       const size = isCritical ? 0.3 : 0.2;
@@ -897,7 +867,12 @@ export function Player() {
     }
     
     // Create impact effect using visual effects manager
-    const effectsManager = VisualEffectsManager.getInstance();
+    const effectsManager = {
+      createImpactEffect: (position: THREE.Vector3, color: number, scale: number, duration?: number) => {
+        console.log('VisualEffectsManager.createImpactEffect called with:', position, color, scale, duration);
+        return null;
+      }
+    };
     if (effectsManager) {
       effectsManager.createImpactEffect(
         position,
@@ -908,7 +883,12 @@ export function Player() {
     
     // Play hit sound with variation based on critical
     // Using non-null assertion to handle string | null parameter issue
-    AudioManager.playSound('hit', {
+    const audioManager = {
+      playSound: (sound: string, options?: { rate?: number, volume?: number }) => {
+        console.log('AudioManager.playSound called with:', sound, options);
+      }
+    };
+    audioManager.playSound('hit', {
       rate: isCritical ? 1.2 : 1.0,
       volume: isCritical ? 0.7 : 0.5
     });
@@ -922,7 +902,12 @@ export function Player() {
     meshRef.current.getWorldPosition(worldPos);
     
     // Get particle system
-    const particleSystem = ParticleSystem.getInstance();
+    const particleSystem = {
+      emitParticles: (type: string, position: THREE.Vector3, count: number, speed: number, size: number, duration: number, color?: THREE.Color) => {
+        console.log('ParticleSystem.emitParticles called with:', type, position, count, speed, size, duration, color);
+        return null;
+      }
+    };
     
     // Create dash trail
     const dashDirection = moveDirection.current.clone();
@@ -949,7 +934,12 @@ export function Player() {
     }
     
     // Add a flash effect using visual effects manager
-    const effectsManager = VisualEffectsManager.getInstance();
+    const effectsManager = {
+      createAttackTrail: (startPoint: THREE.Vector3, endPoint: THREE.Vector3, color: number, duration: number) => {
+        console.log('VisualEffectsManager.createAttackTrail called with:', startPoint, endPoint, color, duration);
+        return null;
+      }
+    };
     if (effectsManager) {
       effectsManager.createAttackTrail(
         worldPos, 
@@ -963,20 +953,23 @@ export function Player() {
   return (
     <RigidBody 
       ref={rigidBodyRef}
-      type="dynamic"
-      position={[0, 1, 0]}
+      colliders="cuboid"
       mass={1}
-      friction={0.7}
-      restitution={0.2}
-      lockRotations
+      type="dynamic"
+      position={[5, 1, 5]}
       enabledRotations={[false, false, false]}
     >
-      <CapsuleCollider args={[0.5, 0.5]} friction={1} />
       <group ref={meshRef}>
         {/* Player model */}
-        <mesh castShadow>
+        <mesh castShadow receiveShadow>
           <capsuleGeometry args={[0.5, 1, 4, 8]} />
-          <meshStandardMaterial color="#4a9eff" />
+          <meshStandardMaterial color="#4285F4" emissive="#0a4bff" emissiveIntensity={0.2} />
+        </mesh>
+        
+        {/* Player eyes (to show direction) */}
+        <mesh position={[0, 0.7, 0.5]}>
+          <sphereGeometry args={[0.1, 16, 16]} />
+          <meshStandardMaterial color="#FFFFFF" emissive="#ffffff" emissiveIntensity={0.5} />
         </mesh>
         
         {/* Attack stick animation */}
