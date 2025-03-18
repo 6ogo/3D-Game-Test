@@ -82,6 +82,7 @@ export function Player() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       keyboard.keysPressed.add(e.code);
+      console.log('Key down:', e.code);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -112,10 +113,10 @@ export function Player() {
   // Keyboard controls - Inverted as per user's request
   const getKeys = () => {
     return {
-      forward: keyboard.pressed('KeyS') || keyboard.pressed('ArrowDown'), // S looks up
-      backward: keyboard.pressed('KeyW') || keyboard.pressed('ArrowUp'), // W looks down
-      left: keyboard.pressed('KeyD') || keyboard.pressed('ArrowRight'), // D looks left
-      right: keyboard.pressed('KeyA') || keyboard.pressed('ArrowLeft'), // A looks right
+      forward: keyboard.pressed('KeyS') || keyboard.pressed('ArrowDown'), // S moves forward
+      backward: keyboard.pressed('KeyW') || keyboard.pressed('ArrowUp'), // W moves backward
+      left: keyboard.pressed('KeyD') || keyboard.pressed('ArrowRight'), // D moves left
+      right: keyboard.pressed('KeyA') || keyboard.pressed('ArrowLeft'), // A moves right
       jump: keyboard.pressed('Space'),
       attack: keyboard.pressed('Mouse0') || keyboard.pressed('KeyF'),
       special: keyboard.pressed('KeyQ') || keyboard.pressed('KeyE'),
@@ -210,6 +211,20 @@ export function Player() {
     if (keys.backward) moveDirection.current.z += 1;
     if (keys.left) moveDirection.current.x -= 1;
     if (keys.right) moveDirection.current.x += 1;
+    
+    // Debug log current movement direction
+    if (moveDirection.current.lengthSq() > 0) {
+      console.log('Moving:', { 
+        x: moveDirection.current.x, 
+        z: moveDirection.current.z,
+        keys: {
+          forward: keys.forward,
+          backward: keys.backward,
+          left: keys.left,
+          right: keys.right
+        }
+      });
+    }
     
     // Normalize movement direction if length > 0
     if (moveDirection.current.lengthSq() > 0) {
